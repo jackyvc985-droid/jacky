@@ -52,14 +52,14 @@ Hola [NOMBRE], hace tiempo platicamos sobre ordenar la administración de [EMPRE
 
 **Nómina Sin Sorpresas** — Nómina sin sorpresas: de la asistencia al recibo archivado, con evidencia en cada paso.
 
-**Cumplimiento Fiscal E Imss** — Fiscal e IMSS sin improvisar: calendario, acuses y expediente por mes.
+**Fiscal E Imss Sin Improvisar** — Fiscal e IMSS sin improvisar: calendario, acuses y expediente por mes.
 
 **Facturación Y Cobranza** — Lo que se factura y no se cobra es riesgo. Revisa tu antigüedad de saldos cada semana.
 
 **Compras Y Proyectos Bajo Control** — Compras y proyectos bajo control: requisición, comparativo, orden, recepción y cierre.
 
-**Reporte Semanal Para Dirección** — Una página para decidir: avances, pendientes, riesgos y decisiones requeridas.
+**Una Página Para Decidir** — Una página para decidir: avances, pendientes, riesgos y decisiones requeridas.
 
 **Cierra Bien Tus Proyectos** — Un proyecto no termina al entregar. Termina al cerrar bien.
 
-**Plan De Implementación De 30 Días** — En 30 días: diagnóstico, plan, operación con controles y primer reporte para dirección.
+**En 30 Días, Tu Operación En Orden** — En 30 días: diagnóstico, plan, operación con controles y primer reporte para dirección.

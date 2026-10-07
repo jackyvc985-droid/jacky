@@ -16,7 +16,7 @@ Cuando la administración improvisa, la operación paga: documentos dispersos, r
 
 ## 3 · Solución
 
-Proponemos un sistema listo para operar: 38 formatos, controles con semáforos y un método de cuatro pasos. No vendemos archivos: vendemos orden, trazabilidad y decisiones con información.
+Proponemos un sistema listo para operar: 45 formatos, controles con semáforos y un método de cuatro pasos. No vendemos archivos: vendemos orden, trazabilidad y decisiones con información.
 
 ## 4 · Método
 

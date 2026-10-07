@@ -25,9 +25,9 @@ def nuevo():
     s.left_margin = s.right_margin = Cm(2.5)
     s.top_margin = s.bottom_margin = Cm(2.3)
     st = d.styles["Normal"]
-    st.font.name = "Abadi"
-    st.font.size = Pt(11)
-    st.element.rPr.rFonts.set(qn("w:eastAsia"), "Abadi")
+    st.font.name = "Arial"
+    st.font.size = Pt(10)
+    st.element.rPr.rFonts.set(qn("w:eastAsia"), "Arial")
     st.font.color.rgb = RGBColor(0x2B, 0x2B, 0x2B)
     st.paragraph_format.space_after = Pt(8)
     st.paragraph_format.line_spacing = 1.15
@@ -134,22 +134,98 @@ def encabezado_empresa(d):
     d.add_paragraph()
 
 
+def _sombra(celda, hex_):
+    sh = OxmlElement("w:shd")
+    sh.set(qn("w:val"), "clear")
+    sh.set(qn("w:fill"), hex_)
+    celda._tc.get_or_add_tcPr().append(sh)
+
+
+def _margenes(celda, arriba=140, abajo=140, izq=260, der=260):
+    tcPr = celda._tc.get_or_add_tcPr()
+    m = OxmlElement("w:tcMar")
+    for lado, v in (("top", arriba), ("left", izq), ("bottom", abajo), ("right", der)):
+        e = OxmlElement(f"w:{lado}")
+        e.set(qn("w:w"), str(v))
+        e.set(qn("w:type"), "dxa")
+        m.append(e)
+    tcPr.append(m)
+
+
 def titulo(d, t, sub=None):
+    """Banner azul marino con el título (blanco), subtítulo y línea dorada; encabezado de página con el nombre del documento."""
     encabezado_empresa(d)
-    p = d.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    tb = d.add_table(rows=1, cols=1)
+    tb.alignment = WD_TABLE_ALIGNMENT.CENTER
+    c = tb.cell(0, 0)
+    c.width = Cm(16.5)
+    _sombra(c, "0B2A4A")
+    _margenes(c)
+    tcPr = c._tc.get_or_add_tcPr()
+    b = OxmlElement("w:tcBorders")
+    for lado in ("top", "left", "right"):
+        e = OxmlElement(f"w:{lado}")
+        e.set(qn("w:val"), "nil")
+        b.append(e)
+    e = OxmlElement("w:bottom")
+    e.set(qn("w:val"), "single")
+    e.set(qn("w:sz"), "30")
+    e.set(qn("w:color"), ORO)
+    b.append(e)
+    tcPr.append(b)
+    p = c.paragraphs[0]
+    p.paragraph_format.space_after = Pt(2)
     r = p.add_run(t.upper())
     r.bold = True
-    r.font.size = Pt(18)
-    r.font.color.rgb = AZUL
-    p.paragraph_format.space_after = Pt(10)
-    borde_parrafo(p)
+    r.font.size = Pt(20)
+    r.font.color.rgb = RGBColor(255, 255, 255)
     if sub:
-        q = d.add_paragraph()
-        q.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        r = q.add_run(sub)
-        r.italic = True
-        r.font.color.rgb = GRIS
+        q = c.add_paragraph()
+        q.paragraph_format.space_after = Pt(0)
+        r2 = q.add_run(sub)
+        r2.font.size = Pt(10.5)
+        r2.font.color.rgb = RGBColor(0xE6, 0xD9, 0xA6)
+    d.add_paragraph().paragraph_format.space_after = Pt(2)
+    h = d.sections[0].header.paragraphs[0]
+    h.text = ""
+    rr = h.add_run(t.upper())
+    rr.font.size = Pt(7.5)
+    rr.font.color.rgb = GRIS
+    borde_parrafo(h, color="C9D3DB", sz=6, espacio=2)
+
+
+def nota(d, rotulo, texto, color="0E7C8B", fondo="F1F8F9"):
+    """Aviso destacado: barra de color a la izquierda, fondo suave, rótulo en mayúsculas."""
+    t = d.add_table(rows=1, cols=1)
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    c = t.cell(0, 0)
+    c.width = Cm(16.5)
+    _sombra(c, fondo)
+    _margenes(c, 110, 110, 220, 200)
+    tcPr = c._tc.get_or_add_tcPr()
+    b = OxmlElement("w:tcBorders")
+    for lado in ("top", "right", "bottom"):
+        e = OxmlElement(f"w:{lado}")
+        e.set(qn("w:val"), "nil")
+        b.append(e)
+    e = OxmlElement("w:left")
+    e.set(qn("w:val"), "single")
+    e.set(qn("w:sz"), "36")
+    e.set(qn("w:color"), color)
+    b.append(e)
+    tcPr.append(b)
+    p = c.paragraphs[0]
+    p.paragraph_format.space_after = Pt(2)
+    r = p.add_run(rotulo.upper())
+    r.bold = True
+    r.font.size = Pt(8)
+    r.font.color.rgb = RGBColor.from_string(color)
+    q = c.add_paragraph()
+    q.paragraph_format.space_after = Pt(0)
+    runs(q, texto)
+    for x in q.runs:
+        x.font.size = Pt(10)
+    d.add_paragraph().paragraph_format.space_after = Pt(0)
 
 
 def par(d, t, bold=False, align=None, indent=False):
@@ -210,6 +286,16 @@ def tabla(d, encabezados, filas_vacias=5, anchos=None):
         sh.set(qn("w:val"), "clear")
         sh.set(qn("w:fill"), "0B2A4A")
         tcPr.append(sh)
+    for i_, row_ in enumerate(t.rows):
+        trPr = row_._tr.get_or_add_trPr()
+        cs = OxmlElement("w:cantSplit")
+        trPr.append(cs)
+        if i_ == 0:
+            th = OxmlElement("w:tblHeader")
+            trPr.append(th)
+    for i_ in range(2, len(t.rows), 2):
+        for c_ in t.rows[i_].cells:
+            _sombra(c_, "F4F6F8")
     # bordes suaves
     tblPr = t._tbl.tblPr
     bs = OxmlElement("w:tblBorders")
@@ -508,6 +594,7 @@ def manual_caja_chica():
     seccion(d, "1. Objetivo")
     par(d, "Establecer las reglas para el manejo, control y reposición del fondo fijo de caja chica de [NOMBRE DE LA EMPRESA], con el fin de atender gastos menores "
            "e imprevistos de forma ágil, con comprobación suficiente y sin riesgo de pérdida de recursos.")
+    nota(d, "Regla de oro", "Sin vale y sin comprobante no hay reembolso. El fondo se cuenta y se concilia, siempre.")
     seccion(d, "2. Alcance")
     par(d, "Aplica a todas las áreas que soliciten recursos de caja chica y al personal responsable de su custodia, autorización y registro contable.")
     seccion(d, "3. Definiciones")
@@ -548,6 +635,7 @@ def politica_compras():
     seccion(d, "1. Objetivo")
     par(d, "Garantizar que las compras de [NOMBRE DE LA EMPRESA] se realicen con las mejores condiciones de precio, calidad y servicio, con transparencia, "
            "autorización adecuada y soporte documental.")
+    nota(d, "Regla de oro", "Nada se compra sin requisición autorizada, y quien solicita nunca autoriza ni recibe.")
     seccion(d, "2. Alcance")
     par(d, "Aplica a todas las compras de bienes, materiales, equipo y contratación de servicios, sin importar el área solicitante ni el monto.")
     seccion(d, "3. Niveles de autorización")
@@ -588,6 +676,7 @@ def politica_viaticos():
     seccion(d, "1. Objetivo")
     par(d, "Regular el otorgamiento, uso y comprobación de viáticos y gastos de viaje del personal de [NOMBRE DE LA EMPRESA], asegurando que sean razonables, "
            "necesarios y deducibles.")
+    nota(d, "Regla de oro", "Todo viaje se autoriza antes y se comprueba con CFDI en los días hábiles definidos.")
     seccion(d, "2. Alcance")
     par(d, "Aplica a todo colaborador que deba trasladarse por motivos de trabajo fuera de su lugar habitual de adscripción.")
     seccion(d, "3. Límites autorizados por día")
@@ -625,6 +714,7 @@ def reglamento_asistencia():
     seccion(d, "1. Objetivo")
     par(d, "Establecer las reglas de asistencia, puntualidad y permanencia de los colaboradores de [NOMBRE DE LA EMPRESA], para asegurar la continuidad de la operación "
            "y la equidad en el trato al personal.")
+    nota(d, "Principio", "El registro de asistencia es personal e intransferible; la puntualidad es parte del trabajo en equipo.")
     seccion(d, "2. Alcance")
     par(d, "Aplica a todo el personal, de base o eventual, en cualquiera de las áreas y turnos de la empresa.")
     seccion(d, "3. Jornada y horarios")
@@ -659,6 +749,7 @@ def procedimiento_inventarios():
     seccion(d, "1. Objetivo")
     par(d, "Definir las actividades para recibir, almacenar, entregar y controlar los inventarios de [NOMBRE DE LA EMPRESA], asegurando que las existencias en sistema "
            "coincidan con las físicas y que las diferencias se investiguen y corrijan.")
+    nota(d, "Regla de oro", "Todo movimiento de inventario tiene un documento de respaldo y un responsable.")
     seccion(d, "2. Alcance")
     par(d, "Aplica a almacenes, bodegas y áreas que resguarden materiales, productos terminados, refacciones o consumibles.")
     seccion(d, "3. Políticas")
@@ -693,6 +784,7 @@ def procedimiento_inventarios():
 def checklist_alta():
     d = doc_base("Checklist de alta de nuevo colaborador", "Documentación, accesos, capacitación y seguimiento del primer mes", "FO-RH-04")
     par(d, "Colaborador: [NOMBRE COMPLETO]    Puesto: [PUESTO]    Área: [ÁREA]    Fecha de ingreso: [FECHA]", align=WD_ALIGN_PARAGRAPH.LEFT)
+    nota(d, "Recomendación", "Complete la documentación antes del primer día; el alta en el IMSS debe hacerse dentro de los 5 días hábiles.")
     bloques = [
         ("A. Documentación (antes del primer día)", ["Solicitud de empleo y CV", "Acta de nacimiento", "CURP", "RFC con constancia de situación fiscal",
                                                      "Número de seguridad social (NSS)", "Comprobante de domicilio (menor a 3 meses)", "Comprobante de estudios",
@@ -766,6 +858,7 @@ def reporte_semanal():
             x.font.size = Pt(9.5)
     sombrear(t.cell(1, 3), AMBAR)
     d.add_paragraph()
+    nota(d, "Cómo leer este reporte", "Verde: en control · Ámbar: atención · Coral: acción inmediata. Una página para decidir.")
     seccion(d, "1. Resumen ejecutivo")
     par(d, "[Conclusión en una frase: cómo va la operación y qué necesitas de dirección. Copia aquí el texto automático de la celda B10 del TABLERO del libro de control operativo.]")
     vinetas(d, ["[Logro principal de la semana].", "[Principal desviación o preocupación].", "[Decisión o apoyo que se requiere de dirección]."])
@@ -792,6 +885,7 @@ def reporte_semanal():
 
 def plan_30_dias():
     d = doc_base("Plan de implementación de 30 días", "Ordenar, planear, ejecutar y cerrar: de la solicitud al primer reporte para dirección", "PL-IMP-01")
+    nota(d, "Principio", "Un proyecto no termina al entregar: termina al cerrar bien, con evidencia y responsables.")
     seccion(d, "1. Objetivo")
     par(d, "Poner bajo control la operación administrativa de [NOMBRE DEL CLIENTE] en 30 días: procesos documentados, responsables definidos, controles en operación "
            "y un reporte semanal que permita a dirección decidir con información.")
@@ -887,10 +981,407 @@ def modelo_operativo():
     guardar(d, "04_Modelo_Operativo_Ordenar_Planear_Ejecutar_Cerrar", "7_Control_Directivo")
 
 
+# ------------------------------------------------------------- FORMATOS EJECUTIVOS (comité, autorización, proyecto, riesgos, cierre)
+def tarjetas(d, items):
+    """Fila de tarjetas KPI: etiqueta pequeña, valor grande y línea dorada inferior."""
+    t = d.add_table(rows=1, cols=len(items))
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    ancho = 16.5 / len(items)
+    for j, (etq, val, color) in enumerate(items):
+        c = t.cell(0, j)
+        c.width = Cm(ancho)
+        _sombra(c, color)
+        _margenes(c, 100, 100, 160, 120)
+        tcPr = c._tc.get_or_add_tcPr()
+        b = OxmlElement("w:tcBorders")
+        for lado, v in (("top", "nil"), ("left", "single"), ("right", "single")):
+            e = OxmlElement(f"w:{lado}")
+            e.set(qn("w:val"), v)
+            if v != "nil":
+                e.set(qn("w:sz"), "12")
+                e.set(qn("w:color"), "FFFFFF")
+            b.append(e)
+        e = OxmlElement("w:bottom")
+        e.set(qn("w:val"), "single")
+        e.set(qn("w:sz"), "24")
+        e.set(qn("w:color"), ORO)
+        b.append(e)
+        tcPr.append(b)
+        p_ = c.paragraphs[0]
+        p_.paragraph_format.space_after = Pt(0)
+        r = p_.add_run(etq.upper())
+        r.bold = True
+        r.font.size = Pt(7.5)
+        r.font.color.rgb = PETROL
+        q = c.add_paragraph()
+        q.paragraph_format.space_after = Pt(0)
+        runs(q, val)
+        for x in q.runs:
+            x.font.size = Pt(13)
+            x.bold = True
+            x.font.color.rgb = AZUL
+    d.add_paragraph().paragraph_format.space_after = Pt(0)
+
+
+def matriz_riesgos(d):
+    t = d.add_table(rows=6, cols=6)
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    t.style = "Table Grid"
+    t.cell(0, 0).text = ""
+    for j in range(1, 6):
+        c = t.cell(0, j)
+        c.text = ""
+        r = c.paragraphs[0].add_run(f"IMPACTO {j}")
+        r.bold = True
+        r.font.size = Pt(7.5)
+        r.font.color.rgb = RGBColor(255, 255, 255)
+        c.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _sombra(c, "0B2A4A")
+    for i, prob in enumerate(range(5, 0, -1), 1):
+        h = t.cell(i, 0)
+        h.text = ""
+        r = h.paragraphs[0].add_run(f"PROB. {prob}")
+        r.bold = True
+        r.font.size = Pt(7.5)
+        r.font.color.rgb = RGBColor(255, 255, 255)
+        _sombra(h, "0B2A4A")
+        for j in range(1, 6):
+            nivel = prob * j
+            c = t.cell(i, j)
+            c.text = ""
+            r = c.paragraphs[0].add_run(f"{nivel}")
+            r.font.size = Pt(9)
+            r.bold = True
+            c.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            _sombra(c, "FFD6D0" if nivel >= 15 else ("FFEB9C" if nivel >= 8 else "C6EFCE"))
+    p_ = d.add_paragraph()
+    r = p_.add_run("Nivel = probabilidad x impacto.  ALTO >= 15 (coral)  ·  MEDIO 8 a 14 (ámbar)  ·  BAJO < 8 (verde). Escribe en cada celda el número de riesgos que caen ahí.")
+    r.font.size = Pt(8)
+    r.font.color.rgb = GRIS
+
+
+def minuta_comite():
+    d = doc_base("Minuta ejecutiva de comité", "Decisiones, acuerdos y compromisos con responsable y fecha", "FO-DIR-02")
+    tarjetas(d, [("Comité", "[NOMBRE]", "F4F8FA"), ("Fecha y hora", "[FECHA · HORA]", "F4F8FA"), ("Acuerdos", "[ # ]", "F4F8FA"), ("Pendientes vencidos", "[ # ]", "FFF3F0")])
+    nota(d, "Propósito", "Registrar solo lo que cambia la operación: decisiones tomadas, acuerdos con responsable y fecha, y los temas que pasan a la siguiente sesión.")
+    seccion(d, "1. Asistentes")
+    tabla_datos(d, ("Nombre", "Puesto / área", "Asistencia", "Firma"), 6, (5.5, 5, 2.5, 3.5))
+    seccion(d, "2. Orden del día")
+    vinetas(d, ["[Tema 1 y responsable].", "[Tema 2 y responsable].", "[Tema 3 y responsable]."])
+    seccion(d, "3. Decisiones tomadas")
+    tabla_datos(d, ("Decisión", "Contexto breve", "Quién decidió", "Impacto"), 4, (5.5, 5, 3, 3))
+    seccion(d, "4. Acuerdos y compromisos")
+    tabla_datos(d, ("No.", "Acuerdo", "Responsable", "Fecha límite", "Semáforo"), 6, (1.2, 7, 3.2, 2.6, 2.5))
+    seccion(d, "5. Temas para la siguiente sesión")
+    tabla_datos(d, ("Tema", "Responsable", "Información requerida"), 3, (6.5, 4, 6))
+    firmas(d, ["Presidente del comité", "Secretario"])
+    d.add_paragraph()
+    aviso(d)
+    guardar(d, "05_Minuta_Ejecutiva_de_Comite", "7_Control_Directivo")
+
+
+def formato_autorizacion():
+    d = doc_base("Solicitud de autorización", "Gasto, compra, contratación o cambio de alcance", "FO-DIR-03")
+    tarjetas(d, [("Monto solicitado", "$[ MONTO ]", "F4F8FA"), ("Presupuesto disponible", "$[ MONTO ]", "F4F8FA"), ("Urgencia", "[ALTA/MEDIA/BAJA]", "FFF8E1"), ("Folio", "[AUT-0000]", "F4F8FA")])
+    seccion(d, "1. Datos de la solicitud")
+    tabla_datos(d, ("Campo", "Detalle"), 6, (4.5, 12), [
+        ("Solicitante y área", "[NOMBRE · ÁREA]"), ("Tipo de solicitud", "[Gasto / Compra / Contratación / Cambio de alcance]"),
+        ("Descripción", "[QUÉ SE SOLICITA]"), ("Proyecto o centro de costo", "[CLAVE · NOMBRE]"),
+        ("Proveedor propuesto", "[NOMBRE · RFC]"), ("Fecha requerida", "[DD/MM/AAAA]")])
+    seccion(d, "2. Justificación")
+    par(d, "[Por qué se necesita, qué problema resuelve y qué ocurre si no se autoriza.]")
+    seccion(d, "3. Opciones evaluadas")
+    tabla_datos(d, ("Opción", "Costo", "Ventajas", "Riesgos"), 3, (4, 3, 5, 4.5), [("[A] Opción recomendada", "$[ ]", "[ ]", "[ ]"), ("[B]", "$[ ]", "[ ]", "[ ]"), ("[C]", "$[ ]", "[ ]", "[ ]")])
+    nota(d, "Recomendación", "[Opción recomendada y razón en una frase.]", color="C9A227", fondo="FFF8E1")
+    seccion(d, "4. Niveles de autorización")
+    tabla_datos(d, ("Nivel", "Nombre y puesto", "Decisión", "Fecha", "Firma"), 3, (3, 5, 3.5, 2.2, 2.8), [
+        ("Jefe de área", "[ ]", "☐ Autoriza  ☐ Rechaza  ☐ Aplaza", "[ ]", ""), ("Finanzas", "[ ]", "☐ Autoriza  ☐ Rechaza  ☐ Aplaza", "[ ]", ""),
+        ("Dirección", "[ ]", "☐ Autoriza  ☐ Rechaza  ☐ Aplaza", "[ ]", "")])
+    aviso(d)
+    guardar(d, "06_Solicitud_de_Autorizacion", "7_Control_Directivo")
+
+
+def reporte_proyecto():
+    d = nuevo()
+    d.sections[0].top_margin = Cm(1.5)
+    d.sections[0].bottom_margin = Cm(1.4)
+    titulo(d, "Reporte de proyecto", "Resumen de una página: avance, presupuesto, riesgos y decisiones")
+    tarjetas(d, [("Avance real / plan", "[ % ] / [ % ]", "F4F8FA"), ("Presupuesto ejercido", "[ % ]", "F4F8FA"), ("Desviación", "[ ± días ]", "F4F8FA"), ("Semáforo", "[COLOR]", "FFF8E1")])
+    seccion(d, "Resumen ejecutivo")
+    par(d, "[Qué se logró, dónde está la desviación y qué se necesita de dirección. Máximo 3 líneas.]")
+    seccion(d, "Hitos")
+    tabla_datos(d, ("Hito", "Fecha plan", "Fecha real", "Avance", "Semáforo"), 3, (6.5, 2.7, 2.7, 2, 2.6))
+    seccion(d, "Riesgos principales")
+    tabla_datos(d, ("Riesgo", "Nivel", "Mitigación", "Responsable"), 2, (5.5, 2, 6, 3))
+    seccion(d, "Pendientes y decisiones requeridas")
+    tabla_datos(d, ("Pendiente / decisión", "Responsable", "Fecha requerida", "Estatus"), 2, (7, 3.5, 3, 3))
+    seccion(d, "Próximos pasos")
+    vinetas(d, ["[Próximo paso 1 · responsable · fecha].", "[Próximo paso 2 · responsable · fecha]."])
+    for p_ in d.paragraphs:  # compactar separadores vacíos para que quepa en una sola página
+        if not p_.text.strip():
+            p_.paragraph_format.space_after = Pt(0)
+            p_.paragraph_format.line_spacing = Pt(5)
+    guardar(d, "07_Reporte_de_Proyecto_Una_Pagina", "7_Control_Directivo")
+
+def reporte_riesgos():
+    d = doc_base("Reporte de riesgos", "Matriz de calor, riesgos prioritarios y plan de mitigación", "FO-DIR-05")
+    tarjetas(d, [("Riesgos altos", "[ # ]", "FFF3F0"), ("Riesgos medios", "[ # ]", "FFF8E1"), ("Riesgos bajos", "[ # ]", "F1FAF3"), ("Mitigaciones vencidas", "[ # ]", "F4F8FA")])
+    seccion(d, "Matriz de riesgos")
+    matriz_riesgos(d)
+    d.add_paragraph()
+    seccion(d, "Registro de riesgos prioritarios")
+    tabla_datos(d, ("Riesgo", "P", "I", "Nivel", "Mitigación", "Responsable", "Fecha"), 6, (4.4, 0.9, 0.9, 1.4, 4.2, 2.9, 1.8))
+    seccion(d, "Decisiones requeridas")
+    tabla_datos(d, ("Decisión", "Opciones", "Recomendación"), 3, (5.5, 5.5, 5.5))
+    aviso(d)
+    guardar(d, "08_Reporte_de_Riesgos", "7_Control_Directivo")
+
+
+def cierre_administrativo():
+    d = doc_base("Cierre administrativo de proyecto", "Lista de cierre con responsable, evidencia y fecha", "FO-DIR-06")
+    nota(d, "Principio", "Un proyecto no termina al entregar: termina al cerrar bien, con cifras conciliadas, pendientes en cero y expediente completo.")
+    secciones = [("Entregables y cliente", ["Acta de entrega-recepción firmada", "Aceptación del cliente por escrito", "Garantías y manuales entregados"]),
+                 ("Finanzas", ["Facturación final emitida", "Cobranza pendiente conciliada", "Presupuesto vs. real cerrado y explicado", "Anticipos y retenciones liberados"]),
+                 ("Compras y contratos", ["Órdenes de compra cerradas", "Finiquitos de subcontratistas firmados", "Pagos a proveedores conciliados"]),
+                 ("Personal", ["Altas y bajas del proyecto en el IMSS", "Finiquitos y liquidaciones", "Evaluación del equipo"]),
+                 ("Documentación", ["Expediente final digitalizado", "Lecciones aprendidas documentadas", "Informe de cierre a dirección"])]
+    for tit, items in secciones:
+        seccion(d, tit)
+        t = tabla(d, ["Actividad de cierre", "Responsable", "Evidencia", "Fecha", "Listo (✔)"], len(items), [5.5, 3, 4, 2, 2])
+        for i, it in enumerate(items, 1):
+            t.cell(i, 0).text = ""
+            runs(t.cell(i, 0).paragraphs[0], it)
+            for x in t.cell(i, 0).paragraphs[0].runs:
+                x.font.size = Pt(9.5)
+        d.add_paragraph()
+    firmas(d, ["Responsable del proyecto", "Finanzas", "Dirección"])
+    d.add_paragraph()
+    aviso(d)
+    guardar(d, "09_Cierre_Administrativo_de_Proyecto", "7_Control_Directivo")
+
+
+# ---------------------------------------------------------------- PROPUESTA COMERCIAL EJECUTIVA
+def portada_ejecutiva(d, etiqueta, titulo_, subtitulo_, datos):
+    """Portada de página completa: bloque azul marino con título, línea dorada y tres datos clave."""
+    encabezado_empresa(d)
+    for _ in range(3):
+        d.add_paragraph()
+    tb = d.add_table(rows=1, cols=1)
+    tb.alignment = WD_TABLE_ALIGNMENT.CENTER
+    c = tb.cell(0, 0)
+    c.width = Cm(16.5)
+    tr = tb.rows[0]._tr
+    h = OxmlElement("w:trHeight")
+    h.set(qn("w:val"), "6300")
+    h.set(qn("w:hRule"), "exact")
+    tr.get_or_add_trPr().append(h)
+    _sombra(c, "0B2A4A")
+    _margenes(c, 300, 300, 500, 400)
+    tcPr = c._tc.get_or_add_tcPr()
+    va = OxmlElement("w:vAlign")
+    va.set(qn("w:val"), "center")
+    tcPr.append(va)
+    b = OxmlElement("w:tcBorders")
+    for lado in ("top", "left", "right"):
+        e = OxmlElement(f"w:{lado}")
+        e.set(qn("w:val"), "nil")
+        b.append(e)
+    e = OxmlElement("w:bottom")
+    e.set(qn("w:val"), "single")
+    e.set(qn("w:sz"), "48")
+    e.set(qn("w:color"), ORO)
+    b.append(e)
+    tcPr.append(b)
+    p1 = c.paragraphs[0]
+    r = p1.add_run(etiqueta.upper())
+    r.bold = True
+    r.font.size = Pt(10)
+    r.font.color.rgb = RGBColor(0xC9, 0xA2, 0x27)
+    p2 = c.add_paragraph()
+    p2.paragraph_format.space_before = Pt(10)
+    r = p2.add_run(titulo_.upper())
+    r.bold = True
+    r.font.size = Pt(30)
+    r.font.color.rgb = RGBColor(255, 255, 255)
+    p3 = c.add_paragraph()
+    p3.paragraph_format.space_before = Pt(8)
+    r = p3.add_run(subtitulo_)
+    r.font.size = Pt(12)
+    r.font.color.rgb = RGBColor(0xC9, 0xD3, 0xDB)
+    d.add_paragraph()
+    t = d.add_table(rows=2, cols=len(datos))
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    for j, (etq, val) in enumerate(datos):
+        a_, b_ = t.cell(0, j), t.cell(1, j)
+        a_.text, b_.text = "", ""
+        r = a_.paragraphs[0].add_run(etq.upper())
+        r.bold = True
+        r.font.size = Pt(8)
+        r.font.color.rgb = PETROL
+        runs(b_.paragraphs[0], val)
+        for x in b_.paragraphs[0].runs:
+            x.font.size = Pt(12)
+            x.bold = True
+        _sombra(a_, "F4F8FA")
+        _sombra(b_, "F4F8FA")
+    d.add_page_break()
+
+
+def comparativo_paquetes(d):
+    """Tabla premium de tres paquetes con la opción recomendada destacada en dorado."""
+    cols = ["", "ESENCIAL", "PROFESIONAL", "ESTRATÉGICO"]
+    filas_ = [("Alcance", "[Diagnóstico y plan]", "[Diagnóstico + controles + tablero]", "[Implementación integral]"),
+              ("Libro de control operativo", "✔", "✔", "✔"), ("Tablero ejecutivo semanal", "—", "✔", "✔"),
+              ("Reporte semanal a dirección", "—", "✔", "✔"), ("Integración de compras y proyectos", "—", "—", "✔"),
+              ("Capacitación al equipo", "[1 sesión]", "[2 sesiones]", "[4 sesiones]"), ("Soporte posterior", "—", "[1 mes]", "[3 meses]"),
+              ("Tiempo de entrega", "[4 semanas]", "[6 semanas]", "[8 semanas]"), ("Inversión (antes de IVA)", "$[MONTO]", "$[MONTO]", "$[MONTO]")]
+    t = d.add_table(rows=len(filas_) + 2, cols=4)
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    t.autofit = False
+    for i, w in enumerate((5.2, 3.7, 4.1, 3.7)):
+        t.columns[i].width = Cm(w)
+    # cinta "RECOMENDADO"
+    for j in range(4):
+        c = t.cell(0, j)
+        c.text = ""
+        c.width = Cm((5.2, 3.7, 4.1, 3.7)[j])
+        if j == 2:
+            r = c.paragraphs[0].add_run("★ RECOMENDADO")
+            r.bold = True
+            r.font.size = Pt(8.5)
+            r.font.color.rgb = AZUL
+            c.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            _sombra(c, "C9A227")
+    for j, nom in enumerate(cols):
+        c = t.cell(1, j)
+        c.text = ""
+        c.width = Cm((5.2, 3.7, 4.1, 3.7)[j])
+        r = c.paragraphs[0].add_run(nom)
+        r.bold = True
+        r.font.size = Pt(10)
+        r.font.color.rgb = AZUL if j == 2 else RGBColor(255, 255, 255)
+        c.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _sombra(c, "C9A227" if j == 2 else "0B2A4A")
+        _margenes(c, 120, 120, 100, 100)
+    for i, fila in enumerate(filas_, 2):
+        ult = i == len(filas_) + 1
+        for j, v in enumerate(fila):
+            c = t.cell(i, j)
+            c.text = ""
+            c.width = Cm((5.2, 3.7, 4.1, 3.7)[j])
+            runs(c.paragraphs[0], v)
+            _margenes(c, 80, 80, 120, 100)
+            for x in c.paragraphs[0].runs:
+                x.font.size = Pt(12 if ult else 9.5)
+                x.bold = j == 0 or ult
+                if v == "✔":
+                    x.font.color.rgb = PETROL
+                if v == "—":
+                    x.font.color.rgb = RGBColor(0xA6, 0xB3, 0xBF)
+            if j:
+                c.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            _sombra(c, "FFF4CC" if j == 2 else ("E6ECF1" if ult else ("F7F9FB" if i % 2 else "FFFFFF")))
+    tblPr = t._tbl.tblPr
+    bs = OxmlElement("w:tblBorders")
+    for lado in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        e = OxmlElement(f"w:{lado}")
+        e.set(qn("w:val"), "single")
+        e.set(qn("w:sz"), "4")
+        e.set(qn("w:color"), "D9DEE3")
+        bs.append(e)
+    tblPr.append(bs)
+    d.add_paragraph()
+
+
+def propuesta_comercial():
+    d = nuevo()
+    d.sections[0].header.paragraphs[0].text = ""
+    portada_ejecutiva(d, "Propuesta comercial", "Propuesta de servicios", "[NOMBRE DEL PROYECTO] · Preparada para [NOMBRE DEL CLIENTE]",
+                      [("Fecha", "[DD/MM/AAAA]"), ("Folio", "[PC-0000]"), ("Vigencia", "[15 días]")])
+    h = d.sections[0].header.paragraphs[0]
+    rr = h.add_run("PROPUESTA COMERCIAL")
+    rr.font.size = Pt(7.5)
+    rr.font.color.rgb = GRIS
+    seccion(d, "1. Resumen ejecutivo")
+    nota(d, "En una frase", "[Qué resolvemos, en cuánto tiempo y con qué resultado medible para [CLIENTE].]", color="C9A227", fondo="FFF8E1")
+    vinetas(d, ["**Problema:** [lo que hoy le cuesta al cliente: tiempo, dinero, riesgo].", "**Solución:** [qué implementaremos].", "**Resultado:** [qué podrá hacer el cliente al terminar]."])
+    seccion(d, "2. El reto del cliente")
+    tarjetas(d, [("Situación actual", "[ ]", "F4F8FA"), ("Impacto", "[ ]", "FFF3F0"), ("Riesgo", "[ ]", "FFF8E1"), ("Oportunidad", "[ ]", "F1FAF3")])
+    par(d, "[Describe en 3 a 5 líneas la situación del cliente con sus propias palabras: qué intentó, qué no funcionó y qué está en juego.]")
+    seccion(d, "3. Solución y metodología")
+    par(d, "Trabajamos con un método de cuatro pasos que convierte el desorden en control y asegura que cada proyecto termine con evidencia.")
+    t = d.add_table(rows=2, cols=4)
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    for j, (tit, color, txt) in enumerate([("1 · ORDENAR", "0B2A4A", "Procesos, documentos y responsables."), ("2 · PLANEAR", "0E7C8B", "Prioridades, calendario y riesgos."),
+                                           ("3 · EJECUTAR", "C9A227", "Controles y seguimiento semanal."), ("4 · CERRAR", "E8604C", "Entregables, cifras y expediente final.")]):
+        a_, b_ = t.cell(0, j), t.cell(1, j)
+        a_.text, b_.text = "", ""
+        r = a_.paragraphs[0].add_run(tit)
+        r.bold = True
+        r.font.size = Pt(10.5)
+        r.font.color.rgb = RGBColor(255, 255, 255) if color != "C9A227" else AZUL
+        a_.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _sombra(a_, color)
+        _margenes(a_, 100, 100, 80, 80)
+        rr = b_.paragraphs[0].add_run(txt)
+        rr.font.size = Pt(9)
+        _sombra(b_, "F4F6F8")
+        _margenes(b_, 100, 100, 120, 100)
+    d.add_paragraph()
+    seccion(d, "4. Alcance y entregables")
+    tabla_datos(d, ("Entregable", "Descripción", "Fase", "Formato"), 5, (4.5, 7, 2, 3), [
+        ("[Informe de diagnóstico]", "[Hallazgos, brechas y prioridades]", "Ordenar", "PDF"), ("[Plan de trabajo]", "[Actividades, responsables y fechas]", "Planear", "Excel"),
+        ("[Libro de control]", "[Seguimiento semanal con semáforos]", "Ejecutar", "Excel"), ("[Reporte semanal]", "[Resumen para dirección]", "Ejecutar", "Word / PDF"),
+        ("[Informe de cierre]", "[Resultados y plan a 90 días]", "Cerrar", "PDF")])
+    seccion(d, "5. Calendario de implementación")
+    tabla_datos(d, ("Semana", "Actividades principales", "Entregable", "Responsable"), 4, (2.5, 7, 4, 3), [
+        ("Semana 1", "[Arranque, diagnóstico y recepción de documentos]", "[Informe de diagnóstico]", "[ ]"), ("Semana 2", "[Priorización, responsables y calendario]", "[Plan firmado]", "[ ]"),
+        ("Semana 3", "[Operación con controles y capacitación]", "[Primer reporte semanal]", "[ ]"), ("Semana 4", "[Cierre, procedimientos y plan a 90 días]", "[Expediente final]", "[ ]")])
+    seccion(d, "6. Inversión: elige tu paquete")
+    comparativo_paquetes(d)
+    nota(d, "Por qué recomendamos el paquete profesional", "[Una razón concreta: equilibra alcance e inversión y cubre el riesgo principal del cliente.]", color="C9A227", fondo="FFF8E1")
+    seccion(d, "7. Beneficios para su empresa")
+    tarjetas(d, [("Menos retrabajo", "[ ]", "F4F8FA"), ("Control documental", "[ ]", "F4F8FA"), ("Decisiones con información", "[ ]", "F4F8FA")])
+    seccion(d, "8. Condiciones comerciales y exclusiones")
+    tabla_datos(d, ("Condición", "Detalle"), 6, (4.5, 12), [
+        ("Forma de pago", "[40% anticipo · 30% avance · 30% cierre]"), ("Vigencia", "[15 días naturales]"), ("Precios", "[Pesos mexicanos (MXN) más IVA]"),
+        ("Exclusiones", "[Lo que no incluye la propuesta]"), ("Supuestos", "[Accesos, información y responsables del cliente]"), ("Cambios de alcance", "[Se cotizan por separado y requieren autorización]")])
+    seccion(d, "9. Próximo paso")
+    t = d.add_table(rows=1, cols=1)
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    c = t.cell(0, 0)
+    c.width = Cm(16.5)
+    _sombra(c, "0B2A4A")
+    _margenes(c, 200, 200, 300, 300)
+    p1 = c.paragraphs[0]
+    r = p1.add_run("AGENDEMOS EL ARRANQUE")
+    r.bold = True
+    r.font.size = Pt(14)
+    r.font.color.rgb = RGBColor(0xC9, 0xA2, 0x27)
+    p2 = c.add_paragraph()
+    r2 = p2.add_run("Elige tu paquete, firma la aceptación y fijamos la reunión de arranque.")
+    r2.font.size = Pt(10.5)
+    r2.font.color.rgb = RGBColor(255, 255, 255)
+    p3 = c.add_paragraph()
+    r3 = p3.add_run("Contacto: [NOMBRE]  ·  [TELÉFONO]  ·  [CORREO]")
+    r3.font.size = Pt(10.5)
+    r3.bold = True
+    r3.font.color.rgb = RGBColor(0xE6, 0xD9, 0xA6)
+    d.add_paragraph()
+    seccion(d, "Aceptación de la propuesta")
+    par(d, "Paquete elegido:   ☐ Esencial     ☐ Profesional     ☐ Estratégico", align=WD_ALIGN_PARAGRAPH.LEFT)
+    firmas(d, ["Por el cliente", "Por el prestador"])
+    d.add_paragraph()
+    aviso(d)
+    guardar(d, "02_Propuesta_Comercial_Ejecutiva", "8_Propuestas_y_Presupuestos")
+
+
 if __name__ == "__main__":
     for f in (contrato_servicios, carta_renuncia, constancia_laboral, carta_cobranza, acta_entrega,
               acta_administrativa, contrato_confidencialidad, carta_poder,
               manual_caja_chica, politica_compras, politica_viaticos, reglamento_asistencia,
               procedimiento_inventarios, checklist_alta,
-              reporte_semanal, plan_30_dias, modelo_operativo):
+              reporte_semanal, plan_30_dias, modelo_operativo,
+              minuta_comite, formato_autorizacion, reporte_proyecto, reporte_riesgos, cierre_administrativo,
+              propuesta_comercial):
         f()

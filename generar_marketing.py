@@ -15,12 +15,13 @@ ETIQUETA = CFG.get("marca") or "SISTEMA ADMINISTRATIVO"
 LOGO = os.path.join(RAIZ, "assets", "logo.png")
 PREV = os.path.join(RAIZ, "vistas_previas")
 
+TOTAL = sum(len([f for f in fs if f.endswith((".xlsx", ".docx"))]) for _, _, fs in os.walk(os.path.join(RAIZ, "plantillas")))
 NAVY, TEAL, CORAL, GOLD, GRIS = "#0B2A4A", "#0E7C8B", "#E8604C", "#C9A227", "#EEF2F5"
 
 CSS = """
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--navy:#0B2A4A;--teal:#0E7C8B;--coral:#E8604C;--gold:#C9A227;--gris:#EEF2F5;--tx:#1c2b3a}
-body{font-family:Abadi,'Abadi MT',Inter,'Segoe UI',Arial,sans-serif;color:var(--tx);background:#071d35}
+body{font-family:Arial,'Liberation Sans',Helvetica,sans-serif;color:var(--tx);background:#071d35}
 .dark{background:linear-gradient(135deg,#071d35 0%,#0B2A4A 55%,#134a6c 100%);color:#fff}
 .light{background:#fff;color:var(--tx)}
 .wm{font-weight:800;letter-spacing:.14em;font-size:15px;color:var(--gold);display:flex;align-items:center;gap:10px}
@@ -111,7 +112,7 @@ def lamina(n, clase, cuerpo, kicker=""):
     return f'<section class="slide {clase}" data-n="{n}">{top(clase=="dark", kicker)}{cuerpo}{pie(n)}</section>'
 
 
-def deck_html():
+def slides():
     s = []
     # 1 portada
     tablero = img64("7_Control_Directivo/01_Control_Operativo_Semanal_resumen.png")
@@ -144,7 +145,7 @@ def deck_html():
     s.append(lamina(3, "dark", f'''<div style="position:absolute;left:64px;right:64px;top:110px">
       <div class="kicker">La solución</div><h2 style="margin:10px 0 28px;max-width:940px">Un sistema listo para operar: formatos, controles y método</h2>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px">
-        <div class="card">{ico("doc")}<h3>38 formatos profesionales</h3><p>Excel con fórmulas y tableros, y documentos Word para contratos, políticas, actas y reportes.</p></div>
+        <div class="card">{ico("doc")}<h3>{TOTAL} formatos profesionales</h3><p>Excel con fórmulas y tableros, y documentos Word para contratos, políticas, actas y reportes.</p></div>
         <div class="card">{ico("chart")}<h3>Controles con semáforos</h3><p>Seguimiento semanal de actividades, pendientes, riesgos, decisiones e indicadores.</p></div>
         <div class="card">{ico("flag")}<h3>Método de cuatro pasos</h3><p>Ordenar, planear, ejecutar y cerrar, con responsables, fechas y evidencia en cada paso.</p></div>
       </div>
@@ -186,18 +187,19 @@ def deck_html():
       <div class="card" style="margin-bottom:12px"><span class="sem v"></span><b>Verde:</b> en control. <span class="sem am" style="margin-left:12px"></span><b>Ámbar:</b> atención. <span class="sem r" style="margin-left:12px"></span><b>Coral:</b> acción inmediata.</div>
       <ul style="font-size:17px;line-height:1.7"><li>Actividades cumplidas, vencidas y pendientes abiertos</li><li>Riesgos con matriz de calor (probabilidad x impacto)</li><li>Decisiones que requiere dirección y fecha límite</li><li>Avance planeado vs. real por proyecto</li><li>Texto automático listo para el reporte semanal</li></ul></div>''', "Gráficas y tableros"))
     # 7 incluye
-    col = lambda ico_, n, t, d: f'<div class="card" style="display:flex;gap:14px;align-items:flex-start">{ico(ico_)}<div><h3 style="margin:0 0 4px">{n} · {t}</h3><p>{d}</p></div></div>'
-    s.append(lamina(7, "light", f'''<style>.s7 .card{{padding:13px 18px}}.s7 .card h3{{font-size:17px}}.s7 .card p{{font-size:13px}}.s7 .ico{{width:40px;height:40px}}</style><div class="s7" style="position:absolute;left:64px;right:64px;top:100px">
-      <div class="kicker">Qué incluye</div><h2 style="margin:8px 0 16px;max-width:900px">38 formatos para ordenar toda la operación administrativa</h2>
-      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:9px">
-        {col("cash", 8, "Contabilidad y finanzas", "Ingresos y gastos, flujo, cobranza, conciliación, presupuesto, activos")}
+    col = lambda ico_, n, t, d: f'<div class="card" style="display:flex;gap:12px;align-items:flex-start">{ico(ico_)}<div><h3 style="margin:0 0 4px">{n} · {t}</h3><p>{d}</p></div></div>'
+    s.append(lamina(7, "light", f'''<style>.s7 .card{{padding:18px 20px}}.s7 .card h3{{font-size:19px}}.s7 .card p{{font-size:15px;line-height:1.4}}.s7 .ico{{width:46px;height:46px;flex:none}}</style><div class="s7" style="position:absolute;left:64px;right:64px;top:100px">
+      <div class="kicker">Qué incluye</div><h2 style="margin:8px 0 16px;max-width:960px">{TOTAL} formatos para ordenar toda la operación administrativa</h2>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+        {col("cash", 8, "Contabilidad y finanzas", "Ingresos y gastos, flujo, cobranza, conciliación, presupuesto")}
         {col("people", 5, "Recursos humanos", "Asistencia, nómina, vacaciones, evaluación, permisos")}
-        {col("cart", 4, "Inventarios y compras", "Inventario, kardex, orden de compra, cuadro comparativo")}
-        {col("doc", 3, "Documentos y actas", "Cotización, recibo, minuta")}
+        {col("cart", 4, "Inventarios y compras", "Inventario, kardex, orden de compra, comparativo")}
+        {col("doc", 3, "Documentos y actas", "Cotización, recibo y minuta")}
         {col("shield", 8, "Contratos, cartas y actas", "Servicios, renuncia, constancia, cobranza, NDA, poder")}
-        {col("check", 6, "Políticas y procedimientos", "Caja chica, compras, viáticos, asistencia, inventarios, alta")}
-        {col("chart", 4, "Control directivo", "Control operativo semanal, reporte, plan de 30 días, modelo operativo")}
-        <div class="card" style="background:var(--navy);color:#fff;display:flex;align-items:center"><div><b style="font-size:30px;color:var(--gold)">Excel + Word</b><br>Editables, con tu logotipo y listos para imprimir o enviar en PDF.</div></div>
+        {col("check", 6, "Políticas y procedimientos", "Caja chica, compras, viáticos, asistencia, inventarios")}
+        {col("chart", 9, "Control directivo", "Control semanal, reportes, comité, riesgos, cierre")}
+        {col("flag", 2, "Propuestas y presupuestos", "Presupuesto de 3 opciones y propuesta ejecutiva")}
+        <div class="card" style="background:var(--navy);color:#fff;display:flex;align-items:center"><div><b style="font-size:24px;color:var(--gold)">Excel + Word</b><br>Editables, con tu logotipo y listos para imprimir o enviar en PDF.</div></div>
       </div></div>''', "Entregables"))
     # 8 tabla
     sem = lambda c: f'<span class="sem {c}"></span>'
@@ -233,12 +235,23 @@ def deck_html():
         <div class="card" style="min-width:210px"><b style="color:var(--gold)">3 · Arranque</b><br>Plan de implementación de 30 días</div></div>
         <p style="margin-top:34px;font-size:22px;font-weight:700;color:var(--gold)">{contacto("  ·  ")}</p>
       </div>{pie(10)}</section>''')
-    cuerpo = "\n".join(s)
+    return s
+
+
+def notas():
+    n = {i + 1: t.replace("{TOTAL}", str(TOTAL)) for i, (_, t) in enumerate(GUION[1:])}
+    n[1] = GUION[0][1] + " " + n[1]
+    return n
+
+
+def deck_html():
+    cuerpo = "\n".join(slides())
+    notas_js = json.dumps(notas(), ensure_ascii=False)
     js = """
-const slides=[...document.querySelectorAll('.slide')];let i=0;
+const NOTAS=__NOTAS__;const slides=[...document.querySelectorAll('.slide')];let i=0;
 function fit(){const k=Math.min(innerWidth/1280,(innerHeight-46)/720);const st=document.getElementById('stage');st.style.transform='scale('+k+')';st.style.marginLeft=((innerWidth-1280*k)/2)+'px';}
-function show(n){i=Math.max(0,Math.min(slides.length-1,n));slides.forEach((s,k)=>s.style.display=k===i?'block':'none');document.getElementById('cnt').textContent=(i+1)+' / '+slides.length;history.replaceState(null,'','#'+(i+1));}
-addEventListener('keydown',e=>{if(['ArrowRight','PageDown',' '].includes(e.key))show(i+1);if(['ArrowLeft','PageUp'].includes(e.key))show(i-1);if(e.key==='Home')show(0);if(e.key==='End')show(slides.length-1);});
+function show(n){i=Math.max(0,Math.min(slides.length-1,n));slides.forEach((s,k)=>s.style.display=k===i?'block':'none');document.getElementById('cnt').textContent=(i+1)+' / '+slides.length;document.getElementById('notes').textContent=NOTAS[i+1]||'';history.replaceState(null,'','#'+(i+1));}
+addEventListener('keydown',e=>{if(['ArrowRight','PageDown',' '].includes(e.key))show(i+1);if(['ArrowLeft','PageUp'].includes(e.key))show(i-1);if(e.key==='Home')show(0);if(e.key==='n'||e.key==='N'){const n=document.getElementById('notes');n.style.display=n.style.display==='block'?'none':'block';}if(e.key==='End')show(slides.length-1);});
 let x0=null;addEventListener('touchstart',e=>x0=e.touches[0].clientX);addEventListener('touchend',e=>{if(x0===null)return;const d=e.changedTouches[0].clientX-x0;if(Math.abs(d)>40)show(i+(d<0?1:-1));x0=null;});
 addEventListener('resize',fit);fit();show((parseInt(location.hash.slice(1))||1)-1);
 document.getElementById('prev').onclick=()=>show(i-1);document.getElementById('next').onclick=()=>show(i+1);
@@ -253,7 +266,26 @@ html,body{{height:100%;overflow:hidden}}
 @media print{{html,body{{overflow:visible;height:auto;background:#fff}}#nav{{display:none}}#stage{{transform:none!important;margin:0!important;height:auto;width:1280px}}
 .slide{{display:block!important;position:relative;page-break-after:always;break-after:page;border-radius:0}}@page{{size:1280px 720px;margin:0}}}}
 </style></head><body><div id="stage">{cuerpo}</div>
-<div id="nav"><button id="prev">◀</button><span id="cnt"></span><button id="next">▶</button></div><script>{js}</script></body></html>'''
+<div id="notes" style="display:none;position:fixed;left:0;right:0;bottom:38px;background:rgba(5,21,38,.96);color:#fff;padding:14px 22px;font-size:15px;line-height:1.5;border-top:3px solid #C9A227"></div>
+<div id="nav"><button id="prev">◀</button><span id="cnt"></span><button id="next">▶</button><span style="opacity:.6;font-size:12px">Tecla N: notas del presentador</span></div><script>{js.replace("__NOTAS__", notas_js)}</script></body></html>'''
+
+
+def handout_html():
+    """Versión para imprimir: una lámina por hoja carta vertical con sus notas del presentador debajo."""
+    bloques = []
+    N = notas()
+    for k, sl in enumerate(slides(), 1):
+        bloques.append(f'<div class="h"><div class="sc"><div class="in">{sl}</div></div><div class="nt"><h4>LÁMINA {k} DE 10 · NOTAS DEL PRESENTADOR</h4><p>{N[k]}</p><h4 style="margin-top:22px">MIS NOTAS</h4>{'<div class=ln></div>' * 6}</div></div>')
+    return f'''<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Presentación · versión para imprimir</title><style>{CSS}
+@page{{size:8.5in 11in;margin:0.5in}}
+body{{background:#fff}}
+.h{{page-break-after:always;break-after:page;width:7.5in}}
+.sc{{width:7.5in;height:4.22in;overflow:hidden;border:1px solid #cfd8df;border-radius:6px}}
+.in{{width:1280px;height:720px;transform:scale(.5625);transform-origin:0 0}}
+.slide{{width:1280px;height:720px;position:relative;overflow:hidden}}
+.ln{{border-bottom:1px solid #cfd8df;height:30px}}
+.nt{{margin-top:.3in}}.nt h4{{font-size:11px;letter-spacing:.12em;color:#0E7C8B;margin-bottom:8px}}.nt p{{font-size:15px;line-height:1.6;color:#1c2b3a}}
+</style></head><body>{"".join(bloques)}</body></html>'''
 
 
 def captura(html_path, png_path, w, h):
@@ -271,56 +303,70 @@ def pdf(html_path, pdf_path):
 
 
 # ----------------------------------------------------------------------------- INFOGRAFÍAS
-def info_html(titulo, sub, cuerpo, kicker="Operación bajo control"):
-    pie_ = contacto("  ·  ")
+FORMATOS = {"1350": (1080, 1350), "1080": (1080, 1080), "1920": (1080, 1920)}
+
+
+def info_html(formato, titulo, sub, items, kicker="Operación bajo control", semaforo=False):
+    """Una idea principal (titular), hasta 4 mensajes con ícono y un llamado a la acción visible."""
+    w, h = FORMATOS[formato]
+    cuadrado, historia = formato == "1080", formato == "1920"
+    tam_t = 54 if cuadrado else (84 if historia else 70)
+    pad_top = 200 if historia else 56
+    cta_alto = 150 if historia else (118 if cuadrado else 130)
+    pad_bot = 240 if historia else 0
+    bloques = "".join(
+        f'<div class="blk"><div class="ic">{ICONOS[ic]}</div><div><h3>{t}</h3><p>{d}</p></div><span class="nn">0{k}</span></div>' for k, (ic, t, d) in enumerate(items[:4], 1))
+    sem = ('<div class="semf"><span><i style="background:#3DAE6B"></i>En control</span><span><i style="background:#E69F00"></i>Atención</span>'
+           '<span><i style="background:#E4572E"></i>Acción</span></div>') if semaforo else ""
+    contacto_ = contacto("  ·  ")
     return f'''<!doctype html><html lang="es"><head><meta charset="utf-8"><style>{CSS}
-body{{width:1080px;height:1350px;overflow:hidden}}
-.w{{width:1080px;height:1350px;position:relative;padding:64px;background:linear-gradient(160deg,#071d35 0%,#0B2A4A 50%,#134a6c 100%);color:#fff}}
-.w:before{{content:"";position:absolute;right:-180px;top:-180px;width:560px;height:560px;border-radius:50%;background:rgba(201,162,39,.14);border:2px solid rgba(201,162,39,.4)}}
-.w h1{{font-size:70px;margin:18px 0 14px;position:relative}}
-.w .sub{{font-size:26px;position:relative;max-width:860px}}
-.blk{{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);border-radius:22px;padding:32px 34px;position:relative}}
-.blk h3{{font-size:33px;margin-bottom:8px;color:#fff}}.blk p{{font-size:25px;line-height:1.38;opacity:.92}}
-.num{{width:62px;height:62px;border-radius:50%;background:var(--gold);color:var(--navy);font-weight:800;font-size:32px;display:flex;align-items:center;justify-content:center;flex:none}}
-.row{{display:flex;gap:20px;align-items:flex-start}}
-.cta{{position:absolute;left:0;right:0;bottom:0;background:#051526;padding:30px 64px;border-top:4px solid var(--gold);display:flex;justify-content:space-between;align-items:center}}
-.cta b{{font-size:25px;color:var(--gold)}}.cta span{{font-size:21px;opacity:.9}}
-.sem{{width:22px;height:22px}}
+body{{width:{w}px;height:{h}px;overflow:hidden;background:#071d35}}
+.w{{width:{w}px;height:{h}px;position:relative;padding:{pad_top}px 64px {cta_alto + pad_bot + 36}px;display:flex;flex-direction:column;background:linear-gradient(160deg,#071d35 0%,#0B2A4A 50%,#134a6c 100%);color:#fff;overflow:hidden}}
+.w:before{{content:"";position:absolute;right:-220px;top:-220px;width:480px;height:480px;border-radius:50%;background:rgba(201,162,39,.14);border:2px solid rgba(201,162,39,.4)}}
+.w h1{{font-size:{tam_t}px;margin:{14 if cuadrado else 20}px 0 12px;position:relative;line-height:1.04}}
+.w .sub{{font-size:{22 if cuadrado else 27}px;position:relative;max-width:900px;line-height:1.35}}
+.grid{{position:relative;margin-top:{26 if cuadrado else 36}px;flex:1;display:{"grid" if cuadrado else "flex"};{"grid-template-columns:1fr 1fr;grid-auto-rows:1fr;" if cuadrado else "flex-direction:column;"}gap:{16 if cuadrado else (28 if historia else 22)}px}}
+.blk{{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);border-radius:22px;padding:{20 if cuadrado else 30}px {24 if cuadrado else 32}px;display:flex;gap:{16 if cuadrado else 24}px;align-items:center;position:relative;overflow:hidden;{'' if cuadrado else 'flex:1;'}}}
+.blk .nn{{position:absolute;right:22px;bottom:-14px;font-size:{110 if cuadrado else 120}px;font-weight:800;color:rgba(255,255,255,.07);line-height:1}}
+.blk h3{{font-size:{34 if cuadrado else (40 if historia else 33)}px;margin-bottom:8px;color:#fff}}
+.blk p{{font-size:{24 if cuadrado else (30 if historia else 25)}px;line-height:1.32;opacity:.92}}
+.ic{{flex:none;width:{74 if cuadrado else (90 if historia else 72)}px;height:{74 if cuadrado else (90 if historia else 72)}px;border-radius:18px;background:var(--gold);color:var(--navy);display:flex;align-items:center;justify-content:center}}
+.ic svg{{width:58%;height:58%;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}}
+.semf{{grid-column:1 / -1;display:flex;gap:34px;justify-content:center;font-size:{20 if cuadrado else 26}px;font-weight:800;margin-bottom:{12 if cuadrado else 20}px}}
+.semf i{{display:inline-block;width:20px;height:20px;border-radius:50%;margin-right:10px;vertical-align:middle}}
+.cta{{position:absolute;left:0;right:0;bottom:{pad_bot}px;height:{cta_alto}px;background:#051526;border-top:4px solid var(--gold);padding:0 64px;display:flex;justify-content:space-between;align-items:center}}
+.cta .t{{font-size:{22 if cuadrado else 27}px;font-weight:800;color:var(--gold);line-height:1.2}}.cta .t span{{display:block;font-size:{17 if cuadrado else 21}px;font-weight:400;color:#fff;opacity:.9;margin-top:4px}}
+.btn{{background:var(--gold);color:var(--navy);font-weight:800;font-size:{20 if cuadrado else 25}px;padding:{16 if cuadrado else 22}px {26 if cuadrado else 36}px;border-radius:999px;white-space:nowrap}}
 </style></head><body><div class="w"><div style="position:relative;display:flex;justify-content:space-between;align-items:center">{marca()}<span class="kicker">{kicker}</span></div>
-<h1>{titulo}</h1><p class="sub">{sub}</p><div style="margin-top:36px;position:relative">{cuerpo}<div class="blk" style="margin-top:6px;text-align:center;font-size:30px;font-weight:800;color:var(--gold);padding:22px">Menos improvisación. Más trazabilidad.</div></div>
-<div class="cta"><div><b>{CFG["lema"]}</b><br><span>Agenda una reunión de 30 minutos</span></div><div style="text-align:right"><span>{pie_}</span></div></div></div></body></html>'''
-
-
-def pasos_info(items):
-    return "".join(f'<div class="blk row" style="margin-bottom:20px"><div class="num">{i}</div><div><h3>{t}</h3><p>{d}</p></div></div>' for i, (t, d) in enumerate(items, 1))
+<h1>{titulo}</h1><p class="sub">{sub}</p><div class="grid">{sem}{bloques}</div>
+<div class="cta"><div class="t">{CFG["lema"]}<span>{contacto_ or "Menos improvisación. Más trazabilidad."}</span></div><div class="btn">Agenda una reunión →</div></div></div></body></html>'''
 
 
 INFOGRAFIAS = [
     ("01_Operacion_bajo_control", "OPERACIÓN BAJO CONTROL", "Cuatro pasos para pasar del desorden a una operación que se puede dirigir.",
-     pasos_info([("Ordenar", "Procesos, documentos y responsables en un solo lugar."), ("Planear", "Prioridades, calendario, presupuesto y riesgos."),
-                 ("Ejecutar", "Formatos estándar y seguimiento semanal con semáforos."), ("Cerrar", "Entregables validados, cifras conciliadas y expediente completo.")]), "Modelo operativo"),
+     [("doc", "Ordenar", "Procesos, documentos y responsables en un solo lugar."), ("cal", "Planear", "Prioridades, calendario, presupuesto y riesgos."),
+      ("check", "Ejecutar", "Formatos estándar y seguimiento semanal con semáforos."), ("flag", "Cerrar", "Entregables validados y expediente completo.")], "Modelo operativo", False),
     ("02_Nomina_sin_sorpresas", "NÓMINA SIN SORPRESAS", "Un flujo claro desde la asistencia hasta el recibo archivado.",
-     pasos_info([("Asistencia e incidencias", "Faltas, retardos, vacaciones e incapacidades validados."), ("Cálculo y revisión", "Percepciones, deducciones y neto conciliados."),
-                 ("Dispersión", "Pago autorizado con layout y respaldo."), ("Recibos y archivo", "CFDI de nómina y evidencia por periodo.")]), "Nómina"),
-    ("03_Cumplimiento_fiscal_e_IMSS", "CUMPLIMIENTO FISCAL E IMSS", "Calendario, acuses y expediente: sin multas, sin improvisar.",
-     pasos_info([("Documentos al día", "Constancia, opinión de cumplimiento y contratos vigentes."), ("Cálculo y declaración", "Impuestos y cuotas con cifras conciliadas."),
-                 ("Pago y acuse", "Línea de captura pagada y acuse guardado."), ("Expediente por mes", "Todo localizable en minutos si llega una revisión.")]), "Cumplimiento"),
-    ("04_Facturacion_y_cobranza", "FACTURACIÓN Y COBRANZA", "Lo que se factura y no se cobra, no es ingreso: es riesgo.",
-     pasos_info([("Factura correcta", "Datos fiscales validados y CFDI emitido a tiempo."), ("Seguimiento", "Antigüedad de saldos revisada cada semana."),
-                 ("Cobro y aplicación", "Pagos aplicados y estados de cuenta enviados."), ("Conciliación", "Bancos, cartera y contabilidad en el mismo número.")]), "Cobranza"),
+     [("people", "Asistencia e incidencias", "Faltas, retardos, vacaciones e incapacidades validados."), ("chart", "Cálculo y revisión", "Percepciones, deducciones y neto conciliados."),
+      ("cash", "Dispersión", "Pago autorizado con layout y respaldo."), ("doc", "Recibos y archivo", "CFDI de nómina y evidencia por periodo.")], "Nómina", False),
+    ("03_Cumplimiento_fiscal_e_IMSS", "FISCAL E IMSS SIN IMPROVISAR", "Calendario, acuses y expediente: sin multas, sin sobresaltos.",
+     [("doc", "Documentos al día", "Constancia, opinión de cumplimiento y contratos vigentes."), ("chart", "Cálculo y declaración", "Impuestos y cuotas con cifras conciliadas."),
+      ("check", "Pago y acuse", "Línea de captura pagada y acuse guardado."), ("shield", "Expediente por mes", "Todo localizable en minutos ante una revisión.")], "Cumplimiento", False),
+    ("04_Facturacion_y_cobranza", "FACTURACIÓN Y COBRANZA", "Lo que se factura y no se cobra no es ingreso: es riesgo.",
+     [("doc", "Factura correcta", "Datos fiscales validados y CFDI a tiempo."), ("chart", "Seguimiento", "Antigüedad de saldos revisada cada semana."),
+      ("cash", "Cobro y aplicación", "Pagos aplicados y estados de cuenta enviados."), ("check", "Conciliación", "Bancos, cartera y contabilidad en el mismo número.")], "Cobranza", False),
     ("05_Compras_y_proyectos", "COMPRAS Y PROYECTOS BAJO CONTROL", "De la requisición al cierre: autorizado, comparado y documentado.",
-     pasos_info([("Requisición autorizada", "Nada se compra sin necesidad y responsable."), ("Cuadro comparativo", "Tres cotizaciones, criterio claro y decisión registrada."),
-                 ("Orden y recepción", "Conciliación de tres vías: orden, entrada y factura."), ("Avance y presupuesto", "Plan vs. real por proyecto, cada semana.")]), "Compras y proyectos"),
-    ("06_Reporte_para_direccion", "REPORTE SEMANAL PARA DIRECCIÓN", "Una página para decidir: avances, pendientes, riesgos y decisiones.",
-     '<div class="blk" style="margin-bottom:16px;display:flex;gap:46px;justify-content:center;font-size:26px;font-weight:800"><span><span class="sem v" style="display:inline-block;border-radius:50%;background:#3DAE6B;vertical-align:middle;margin-right:10px"></span>En control</span><span><span class="sem am" style="display:inline-block;border-radius:50%;background:#C9A227;vertical-align:middle;margin-right:10px"></span>Atención</span><span><span class="sem r" style="display:inline-block;border-radius:50%;background:#E8604C;vertical-align:middle;margin-right:10px"></span>Acción</span></div>'
-     + pasos_info([("Resumen ejecutivo", "Cómo va la operación y qué se necesita de dirección."), ("Avances y pendientes", "Con responsable, fecha y evidencia."),
-                   ("Riesgos y decisiones", "Matriz de riesgos y opciones con recomendación.")]), "Reportes"),
+     [("doc", "Requisición autorizada", "Nada se compra sin necesidad y responsable."), ("chart", "Cuadro comparativo", "Tres cotizaciones y decisión registrada."),
+      ("cart", "Orden y recepción", "Conciliación de tres vías: orden, entrada y factura."), ("flag", "Avance y presupuesto", "Plan vs. real por proyecto, cada semana.")], "Compras y proyectos", False),
+    ("06_Reporte_para_direccion", "UNA PÁGINA PARA DECIDIR", "El reporte semanal que dirección lee en un minuto.",
+     [("doc", "Resumen ejecutivo", "Cómo va la operación y qué se necesita."), ("chart", "Avances y pendientes", "Con responsable, fecha y evidencia."),
+      ("shield", "Riesgos", "Matriz de calor con acciones de mitigación."), ("check", "Decisiones", "Opciones con recomendación y fecha.")], "Reporte semanal", True),
     ("07_Cierra_bien_tus_proyectos", "CIERRA BIEN TUS PROYECTOS", "Un proyecto no termina al entregar. Termina al cerrar bien.",
-     pasos_info([("Entregables validados", "Acta de entrega-recepción firmada."), ("Cifras conciliadas", "Presupuesto, costos y facturación cuadran."),
-                 ("Pendientes cerrados", "Ninguno sin responsable ni fecha."), ("Expediente final", "Evidencia completa y lecciones aprendidas.")]), "Cierre de proyectos"),
-    ("08_Plan_de_30_dias", "PLAN DE IMPLEMENTACIÓN DE 30 DÍAS", "De la solicitud al primer reporte para dirección.",
-     pasos_info([("Semana 1 · Ordenar", "Arranque, diagnóstico y documentos."), ("Semana 2 · Planear", "Prioridades, responsables y calendario."),
-                 ("Semana 3 · Ejecutar", "Operación con controles y primer reporte."), ("Semana 4 · Cerrar", "Indicadores, procedimientos y plan a 90 días.")]), "Implementación"),
+     [("check", "Entregables validados", "Acta de entrega-recepción firmada."), ("cash", "Cifras conciliadas", "Presupuesto, costos y facturación cuadran."),
+      ("loop", "Pendientes cerrados", "Ninguno sin responsable ni fecha."), ("doc", "Expediente final", "Evidencia completa y lecciones aprendidas.")], "Cierre de proyectos", False),
+    ("08_Plan_de_30_dias", "EN 30 DÍAS, TU OPERACIÓN EN ORDEN", "De la solicitud al primer reporte para dirección.",
+     [("doc", "Semana 1 · Ordenar", "Arranque, diagnóstico y documentos."), ("cal", "Semana 2 · Planear", "Prioridades, responsables y calendario."),
+      ("check", "Semana 3 · Ejecutar", "Operación con controles y primer reporte."), ("flag", "Semana 4 · Cerrar", "Indicadores, procedimientos y plan a 90 días.")], "Plan de implementación", False),
 ]
 
 MENSAJES = [
@@ -353,7 +399,7 @@ GUION = [
     ("Apertura", "Gracias por recibirnos. En 30 minutos queremos mostrarte cómo ordenar la administración de tu empresa para que dirección vea, decida y cierre con evidencia. Al final te pediremos un siguiente paso concreto."),
     ("1 · Portada", "Orden para operar. Control para crecer. Trabajamos con constructoras, industriales y empresas de servicios que ya crecieron más rápido que su administración. Pregunta: ¿cómo te enteras hoy de que un proyecto va mal?"),
     ("2 · Problema e impacto", "Cuando la administración improvisa, la operación paga: documentos dispersos, retrabajos, riesgo fiscal y laboral, decisiones a ciegas. El impacto es sobrecosto, multas, cobranza lenta y proyectos que se entregan pero no se cierran."),
-    ("3 · Solución", "Proponemos un sistema listo para operar: 38 formatos, controles con semáforos y un método de cuatro pasos. No vendemos archivos: vendemos orden, trazabilidad y decisiones con información."),
+    ("3 · Solución", "Proponemos un sistema listo para operar: {TOTAL} formatos, controles con semáforos y un método de cuatro pasos. No vendemos archivos: vendemos orden, trazabilidad y decisiones con información."),
     ("4 · Método", "Ordenar, planear, ejecutar y cerrar. Cada paso tiene responsables, fechas y entregables. Un proyecto no termina al entregar: termina al cerrar bien."),
     ("5 · Procesos", "Mostramos cuatro procesos críticos: nómina, fiscal e IMSS, facturación y cobranza, y compras y proyectos. En todos: responsable, fecha y evidencia. Pregunta: ¿cuál de estos hoy te quita más tiempo?"),
     ("6 · Tablero semanal", "Verde, ámbar y coral. En un minuto dirección sabe qué está en control, qué requiere atención y qué necesita una decisión. El mismo libro alimenta el reporte semanal."),
@@ -374,10 +420,15 @@ def main():
     # infografías
     tmp = os.path.join(OUT, "_tmp")
     os.makedirs(tmp)
-    for nombre, tit, sub, cuerpo, k in INFOGRAFIAS:
-        ruta = os.path.join(tmp, nombre + ".html")
-        open(ruta, "w", encoding="utf-8").write(info_html(tit, sub, cuerpo, k))
-        captura(ruta, os.path.join(OUT, "infografias", nombre + ".png"), 1080, 1350)
+    for fmt, (w_, h_) in FORMATOS.items():
+        os.makedirs(os.path.join(OUT, "infografias", f"{w_}x{h_}"), exist_ok=True)
+        for nombre, tit, sub, items, k, semf in INFOGRAFIAS:
+            ruta = os.path.join(tmp, f"{nombre}_{fmt}.html")
+            open(ruta, "w", encoding="utf-8").write(info_html(fmt, tit, sub, items, k, semf))
+            captura(ruta, os.path.join(OUT, "infografias", f"{w_}x{h_}", nombre + ".png"), w_, h_)
+    ho = os.path.join(tmp, "handout.html")
+    open(ho, "w", encoding="utf-8").write(handout_html())
+    pdf(ho, os.path.join(OUT, "Presentacion_Comercial_Impresion_con_notas.pdf"))
     shutil.rmtree(tmp)
     # textos
     m = CFG["marca"].title() if CFG.get("marca") else "[TU MARCA]"
@@ -390,7 +441,7 @@ def main():
     open(os.path.join(OUT, "Mensajes_WhatsApp.md"), "w", encoding="utf-8").write("\n".join(md))
     md = ["# Guion de presentación (10 láminas)\n", "Estructura: problema, impacto, solución, método, entregables y próximo paso.\n"]
     for t, x in GUION:
-        md.append(f"## {t}\n\n{x}\n")
+        md.append(f"## {t}\n\n{x.replace('{TOTAL}', str(TOTAL))}\n")
     open(os.path.join(OUT, "Guion_Presentacion.md"), "w", encoding="utf-8").write("\n".join(md))
     from docx import Document
     from docx.shared import Pt, RGBColor
@@ -398,7 +449,7 @@ def main():
                                       [("Texto para " + n_[1].title(), l) for n_, l in zip(INFOGRAFIAS, LEYENDAS)]),
                                      ("Guion_Presentacion", "Guion de presentación comercial (10 láminas)", GUION)):
         d = Document()
-        d.styles["Normal"].font.name = "Abadi"
+        d.styles["Normal"].font.name = "Arial"
         d.styles["Normal"].font.size = Pt(11)
         h = d.add_heading(titulo_, 0)
         for r in h.runs:
@@ -409,7 +460,7 @@ def main():
             hh = d.add_heading(t, 2)
             for r in hh.runs:
                 r.font.color.rgb = RGBColor(0x0E, 0x7C, 0x8B)
-            d.add_paragraph(x)
+            d.add_paragraph(x.replace("{TOTAL}", str(TOTAL)))
         d.save(os.path.join(OUT, nombre + ".docx"))
     print("Marketing listo en marketing/")
 

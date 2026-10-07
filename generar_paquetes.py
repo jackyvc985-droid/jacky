@@ -19,32 +19,22 @@ CATEGORIAS = {
     "5_Documentos_Word": ("Contratos, Cartas y Actas", "Word"),
     "6_Politicas_y_Procedimientos": ("Políticas y Procedimientos", "Word"),
     "7_Control_Directivo": ("Control Directivo", "Excel y Word"),
+    "8_Propuestas_y_Presupuestos": ("Propuestas y Presupuestos", "Excel y Word"),
 }
 
 
-def _ruta_fuente(familia):
-    try:
-        r = subprocess.run(["fc-match", "-f", "%{file}", familia], capture_output=True, text=True).stdout.strip()
-        return r if os.path.exists(r) else None
-    except Exception:
-        return None
-
-
-FUENTES = {False: _ruta_fuente("Inter:medium") or "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-           True: _ruta_fuente("Inter:bold") or "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"}
+FUENTES = {False: "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",   # Liberation Sans = Arial (mismas métricas)
+           True: "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"}
 
 
 def fuente(tam, bold=False):
     try:
-        f = ImageFont.truetype(FUENTES[bold], tam)
-        if bold and FUENTES[True].lower().endswith(".otf") is False:
-            pass
-        return f
+        return ImageFont.truetype(FUENTES[bold], tam)
     except Exception:
         return ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", tam)
 
 
-ACENTOS = {"Dias": "Días", "Implementacion": "Implementación", "Modelo Operativo Ordenar Planear Ejecutar Cerrar": "Modelo Operativo: Ordenar, Planear, Ejecutar, Cerrar", "Nomina": "Nómina", "Conciliacion": "Conciliación", "Evaluacion": "Evaluación", "Desempeno": "Desempeño",
+ACENTOS = {"Dias": "Días", "Presupuesto Comercial 3 Opciones": "Presupuesto Comercial · 3 Opciones", "Propuesta Comercial Ejecutiva": "Propuesta Comercial Ejecutiva", "Solicitud de Autorizacion": "Solicitud de Autorización", "Minuta Ejecutiva de Comite": "Minuta Ejecutiva de Comité", "Reporte de Proyecto Una Pagina": "Reporte de Proyecto (Una Página)", "Implementacion": "Implementación", "Modelo Operativo Ordenar Planear Ejecutar Cerrar": "Modelo Operativo: Ordenar, Planear, Ejecutar, Cerrar", "Nomina": "Nómina", "Conciliacion": "Conciliación", "Evaluacion": "Evaluación", "Desempeno": "Desempeño",
            "Cotizacion": "Cotización", "Minuta de Reunion": "Minuta de Reunión", "Prestacion": "Prestación",
            "Entrega Recepcion": "Entrega-Recepción", "Politica": "Política", "Politicas": "Políticas", "Viaticos": "Viáticos",
            "Asistencia y Puntualidad": "Asistencia y Puntualidad", "Procedimiento de Control de Inventarios": "Procedimiento de Control de Inventarios",
@@ -73,8 +63,8 @@ def pagina_con_texto(pdf, texto):
     return None
 
 
-PISTA_FORMATO = {"01_Control_Operativo_Semanal": "ACTIVIDADES DE LA SEMANA"}
-PISTAS_RESUMEN = ("RESUMEN D", "TABLERO EJECUTIVO")
+PISTA_FORMATO = {"01_Control_Operativo_Semanal": "ACTIVIDADES DE LA SEMANA", "01_Presupuesto_Comercial_3_Opciones": "PRESUPUESTO COMERCIAL"}
+PISTAS_RESUMEN = ("RESUMEN D", "TABLERO EJECUTIVO", "ANÁLISIS DE VALOR")
 
 
 def vistas_previas():

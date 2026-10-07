@@ -5,7 +5,7 @@ import datetime as dt
 import os
 import shutil
 from openpyxl import load_workbook
-from generar_plantillas import CAJA_F1, INPUT, OP
+from generar_plantillas import CAJA_F1, INPUT, OP, pc_filas
 
 RAIZ = os.path.dirname(os.path.abspath(__file__))
 PLANT = os.path.join(RAIZ, "plantillas")
@@ -19,7 +19,7 @@ def mayus(wb):
         for fila in ws.iter_rows():
             for c in fila:
                 f = c.fill
-                if (isinstance(c.value, str) and not c.value.startswith("=") and f and f.fill_type == "solid"
+                if (isinstance(c.value, str) and not c.value.startswith("=") and f and getattr(f, "fill_type", None) == "solid"
                         and str(f.fgColor.rgb).endswith(INPUT) and c.value not in ("☐", "☑")):
                     c.value = c.value.upper()
 
@@ -377,9 +377,41 @@ def control_operativo(wb):
         ("Avance promedio de proyectos", "%", "Mayor es mejor", 60, 38, 41, 44, 46, 49, 52)])
 
 
+def presupuesto_comercial(wb):
+    ws = wb["PRESUPUESTO"]
+    poner(ws, {"B4": "Constructora Altamira S.A. de C.V.", "F4": "PC-2026-018", "B5": "Implementación de sistema administrativo", "F5": D(2026, 10, 7),
+               "B6": "Dirección comercial", "B7": "Profesional"})
+    items, subs, fin = pc_filas()
+    datos = [
+        [("F1-01", "Diagnóstico de procesos y documentos", "Directo", 18500, 1, 1, 1), ("F1-02", "Mapa de riesgos fiscal e IMSS", "Directo", 12000, 0, 1, 1),
+         ("F1-03", "Expediente digital inicial", "Directo", 9500, 1, 1, 1), ("F1-04", "Reunión de arranque y plan de trabajo", "Indirecto", 4000, 1, 1, 1),
+         ("F1-05", "Gestión del proyecto (semanas)", "Indirecto", 3500, 4, 6, 8)],
+        [("F2-01", "Configuración del libro de control operativo", "Directo", 22000, 1, 1, 1), ("F2-02", "Procedimientos de nómina y cobranza", "Directo", 16000, 0, 1, 1),
+         ("F2-03", "Tablero ejecutivo semanal", "Directo", 14000, 0, 1, 1), ("F2-04", "Matriz de riesgos y responsables", "Directo", 8500, 1, 1, 1),
+         ("F2-05", "Integración de compras y proyectos", "Directo", 19000, 0, 0, 1), ("F2-06", "Coordinación con áreas (semanas)", "Indirecto", 2800, 2, 4, 6)],
+        [("F3-01", "Capacitación al equipo (sesiones)", "Directo", 6500, 1, 2, 4), ("F3-02", "Reporte semanal a dirección (semanas)", "Directo", 2500, 0, 4, 8),
+         ("F3-03", "Soporte posterior al cierre (meses)", "Directo", 7200, 0, 1, 3), ("F3-04", "Informe de cierre y plan a 90 días", "Directo", 9800, 1, 1, 1),
+         ("F3-05", "Costos administrativos", "Indirecto", 3000, 1, 1, 1)]]
+    for k, grupo in enumerate(datos):
+        for i, fila in enumerate(grupo):
+            reg(ws, items[k][i], [1, 2, 3, 4, 5, 6, 7], [fila])
+    t0 = fin + 2
+    for col, pct, sem in (("H", 0, 4), ("I", 0.05, 6), ("J", 0.08, 8)):
+        ws[f"{col}{t0 + 3}"] = pct
+        ws[f"{col}{t0 + 8}"] = sem
+    al = wb["ALCANCE"]
+    textos = {"B": ["Diagnóstico de procesos, mapa de riesgos y plan de trabajo.", "Informe de diagnóstico y libro de control operativo.", "4 semanas", "Orden y visibilidad inicial de la operación.", "Capacitación y soporte posterior.", "Pago 40/30/30 · Vigencia 15 días"],
+              "C": ["Diagnóstico, implementación de controles, tablero ejecutivo y reporte semanal.", "Informe, libro de control, tablero, reporte semanal y procedimientos de nómina y cobranza.", "6 semanas", "Control semanal con semáforos y decisiones con información.", "Soporte posterior al cierre.", "Pago 40/30/30 · Vigencia 15 días"],
+              "D": ["Implementación integral: controles, tablero, compras y proyectos, capacitación y soporte de 3 meses.", "Todo lo anterior, integración de compras y proyectos, plan a 90 días y soporte.", "8 semanas", "Operación estandarizada y cierre de proyectos con evidencia completa.", "Trámites ante autoridades.", "Pago 40/30/30 · Vigencia 15 días"]}
+    for col, vals in textos.items():
+        for i, v in enumerate(vals):
+            al[f"{col}{5 + i}"] = v
+
+
 EJEMPLOS = {
     "1_Contabilidad_y_Finanzas/01_Control_de_Ingresos_y_Gastos": ingresos_gastos,
     "7_Control_Directivo/01_Control_Operativo_Semanal": control_operativo,
+    "8_Propuestas_y_Presupuestos/01_Presupuesto_Comercial_3_Opciones": presupuesto_comercial,
     "1_Contabilidad_y_Finanzas/02_Control_de_Caja_Chica": caja_chica,
     "1_Contabilidad_y_Finanzas/03_Flujo_de_Efectivo_Anual": flujo,
     "1_Contabilidad_y_Finanzas/04_Cuentas_por_Cobrar": cxc,

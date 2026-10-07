@@ -2,7 +2,7 @@
 """Genera plantillas administrativas en Excel (México) en ./plantillas/<categoria>/."""
 import os
 from openpyxl import Workbook
-from openpyxl.styles import Font as _Font, PatternFill, Alignment, Border, Side, Protection
+from openpyxl.styles import Font as _Font, PatternFill, GradientFill, Alignment, Border, Side, Protection
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.utils import get_column_letter as L
 from contenido import CONTENIDO, GENERALES_FAQ
@@ -24,7 +24,7 @@ INPUT = "FFFCF0"
 CALC = "EEF2F5"
 MARCA = ""  # sin marca: el producto se vende a terceros
 ETIQUETA = "FORMATOS ADMINISTRATIVOS"
-FUENTE = "Abadi"
+FUENTE = "Arial"
 # capacidad (último renglón de captura) de cada formato; generar_ejemplos.py las importa
 ING_F0, ING_F1 = 8, 307
 CAJA_F0, CAJA_F1 = 8, 107
@@ -105,14 +105,21 @@ def encabezado(ws, fila, textos, col=1):
     for i, t in enumerate(textos):
         c = ws.cell(fila, col + i, t.upper() if isinstance(t, str) else t)
         c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill("solid", fgColor=COLOR)
+        c.fill = GradientFill(type="linear", degree=90, stop=("17426B", COLOR))
         c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        c.border = BORDE
-    ws.row_dimensions[fila].height = 32
+        c.border = Border(left=thin, right=thin, top=Side(style="medium", color=GOLD), bottom=thin)
+    ws.row_dimensions[fila].height = 36
+    if fila >= 4 and ws.title not in ("RESUMEN", "TABLERO", "PORTADA", "AYUDA") and ws.print_title_rows is None:
+        ws.print_title_rows = f"{fila}:{fila}"
+
+
+REQUERIDOS = {"EMPRESA", "CLIENTE", "PROVEEDOR", "FOLIO", "FECHA", "EMPLEADO", "PERIODO", "BANCO", "CUENTA", "RESPONSABLE", "ALMACÉN", "MES"}
 
 
 def campo(ws, fila, col, etiqueta, span=2, valor=None, fmt=None):
-    """Etiqueta en col y celda de captura a la derecha (span columnas combinadas)."""
+    """Etiqueta en col y celda de captura a la derecha (span columnas combinadas). Los campos clave llevan * (obligatorio)."""
+    if etiqueta.upper() in REQUERIDOS and not etiqueta.endswith("*"):
+        etiqueta = etiqueta + " *"
     letra = L(col)
     necesario = len(etiqueta) * 1.15 + 2
     actual = ws.column_dimensions[letra].width or 8.43
@@ -134,14 +141,36 @@ def campo(ws, fila, col, etiqueta, span=2, valor=None, fmt=None):
     return c
 
 
+def validar_columna(ws, col, desde, hasta, fmt):
+    """Reduce errores de captura: fechas válidas e importes numéricos (advertencia, no bloquea)."""
+    rango = f"{L(col)}{desde}:{L(col)}{hasta}"
+    if fmt == FECHA:
+        dv = DataValidation(type="date", operator="greaterThan", formula1="36526", allow_blank=True, errorStyle="warning", showErrorMessage=True,
+                            showInputMessage=True, errorTitle="FECHA NO VÁLIDA", error="Escribe una fecha válida, por ejemplo 15/03/2026.",
+                            promptTitle="FECHA", prompt="Formato DD/MM/AAAA")
+    elif fmt == MXN:
+        dv = DataValidation(type="decimal", operator="greaterThanOrEqual", formula1="0", allow_blank=True, errorStyle="warning", showErrorMessage=True,
+                            showInputMessage=True, errorTitle="IMPORTE NO VÁLIDO", error="Escribe un importe numérico positivo, sin símbolo $ ni letras.",
+                            promptTitle="IMPORTE (MXN)", prompt="Solo números, sin $ ni comas.")
+    else:
+        return
+    ws.add_data_validation(dv)
+    dv.add(rango)
+
+
 def filas(ws, desde, hasta, ncols, formatos=None, formulas=None, col0=1):
     """Pinta filas de captura. formatos {col: fmt}; formulas {col: lambda fila->str}."""
     formatos = formatos or {}
     formulas = formulas or {}
+    for c_, f_ in formatos.items():
+        if col0 <= c_ < col0 + ncols and c_ not in formulas and f_ in (FECHA, MXN):
+            validar_columna(ws, c_, desde, hasta, f_)
     for r in range(desde, hasta + 1):
+        ws.row_dimensions[r].height = 20
         for c in range(col0, col0 + ncols):
             cel = ws.cell(r, c)
             cel.border = BORDE
+            cel.alignment = Alignment(vertical="center")
             if c in formulas:
                 cel.value = formulas[c](r)
                 cel.fill = PatternFill("solid", fgColor=CALC)
@@ -168,7 +197,9 @@ def total(ws, fila, col_etq, cols_formula, formato=MXN, etiqueta="TOTAL"):
 def lista(ws, rango, opciones, aviso=False):
     """opciones: lista de textos o una fórmula/rango que empiece con '='. aviso=True permite otros valores (advertencia)."""
     f1 = opciones if isinstance(opciones, str) else '"' + ",".join(opciones) + '"'
-    dv = DataValidation(type="list", formula1=f1, allow_blank=True)
+    dv = DataValidation(type="list", formula1=f1, allow_blank=True, showErrorMessage=True, showInputMessage=True,
+                        errorTitle="OPCIÓN NO VÁLIDA", error="Elige una opción de la lista (puedes editarla en la hoja CATÁLOGOS).",
+                        promptTitle="SELECCIONA", prompt="Elige una opción de la lista desplegable.")
     if aviso:
         dv.errorStyle = "warning"
     ws.add_data_validation(dv)
@@ -219,7 +250,7 @@ def mayusculas(ws):
             if not isinstance(v, str) or v.startswith("=") or len(v) > 60 or c.font.i:
                 continue
             f = c.fill
-            if f and f.fill_type == "solid" and str(f.fgColor.rgb).endswith(INPUT):
+            if f and getattr(f, "fill_type", None) == "solid" and str(f.fgColor.rgb).endswith(INPUT):
                 continue
             c.value = v.upper()
 
@@ -229,7 +260,7 @@ def aplicar_fuente(ws):
         for c in fila:
             f = c.font
             if f.name != FUENTE:
-                c.font = _Font(name=FUENTE, sz=f.sz or 10, b=f.b, i=f.i, color=f.color, u=f.u)
+                c.font = _Font(name=FUENTE, sz=10 if f.name != FUENTE else (f.sz or 10), b=f.b, i=f.i, color=f.color, u=f.u)
 
 
 def proteger(wb):
@@ -240,7 +271,7 @@ def proteger(wb):
         for fila in ws.iter_rows():
             for c in fila:
                 f = c.fill
-                if f and f.fill_type == "solid" and str(f.fgColor.rgb).endswith(INPUT):
+                if f and getattr(f, "fill_type", None) == "solid" and str(f.fgColor.rgb).endswith(INPUT):
                     c.protection = Protection(locked=False)
         ws.protection.sheet = True
         ws.protection.objects = False      # permite insertar el logo
@@ -262,6 +293,14 @@ def guardar(wb, cat, nombre):
     wb.save(os.path.join(d, nombre + ".xlsx"))
     print("OK", cat, nombre)
 
+
+CAPACIDAD = {"Control de ingresos y gastos": "300 movimientos · 12 categorías editables", "Control de caja chica": "100 vales", "Flujo de efectivo anual": "11 conceptos x 12 meses",
+             "Cuentas por cobrar": "150 facturas", "Conciliación bancaria": "50 partidas por tipo de movimiento", "Control de asistencia": "50 empleados x 31 días",
+             "Nómina simplificada": "60 empleados", "Control de vacaciones": "60 empleados", "Evaluación de desempeño": "8 criterios ponderados", "Control de inventario": "300 productos",
+             "Kardex": "200 movimientos por artículo", "Orden de compra": "15 partidas", "Cuadro comparativo": "15 partidas · 4 proveedores", "Cotización": "15 partidas",
+             "Recibo de pago": "1 recibo por hoja", "Minuta de reunión": "16 asistentes · 10 compromisos", "Solicitud de vacaciones o permiso": "1 solicitud por hoja",
+             "Presupuesto anual": "10 conceptos x 12 meses", "Activos fijos": "150 activos", "Directorio": "300 registros",
+             "Presupuesto comercial": "3 opciones · 3 fases · hasta 17 conceptos", "Control operativo semanal": "200 actividades · 40 proyectos · 150 pendientes · 60 riesgos · 60 decisiones · 20 indicadores"}
 
 DESCRIPCION_HOJAS = {
     "FORMATO": "Hoja principal de captura. Aquí registras tu información; las celdas grises calculan solas.",
@@ -352,15 +391,30 @@ def instrucciones(wb, titulo, pasos):
         ws.cell(r, 2, "▸").font = Font(size=11, bold=True, color=GOLD)
         ws.cell(r, 2).alignment = Alignment(horizontal="center", vertical="center")
         n = ws.cell(r, 3, nombre)
-        n.font = Font(size=10, bold=True, color=COLOR)
+        n.font = Font(size=10, bold=True, color=PETROL, u="single")
+        n.hyperlink = f"#'{nombre}'!A1"
         n.alignment = Alignment(vertical="center")
         _texto_merge(ws, r, 4, 6, DESCRIPCION_HOJAS.get(nombre, ""), ancho_chars=78)
         r += 1
     if "AYUDA" not in wb.sheetnames:
         ws.cell(r, 2, "▸").font = Font(size=11, bold=True, color=GOLD)
         ws.cell(r, 2).alignment = Alignment(horizontal="center", vertical="center")
-        ws.cell(r, 3, "AYUDA").font = Font(size=10, bold=True, color=COLOR)
+        ws.cell(r, 3, "AYUDA").font = Font(size=10, bold=True, color=PETROL, u="single")
+        ws.cell(r, 3).hyperlink = "#'AYUDA'!A1"
         _texto_merge(ws, r, 4, 6, DESCRIPCION_HOJAS["AYUDA"], ancho_chars=78)
+        r += 1
+    r += 1
+    _seccion(ws, r, "FICHA TÉCNICA")
+    r += 1
+    ficha = [("Capacidad", CAPACIDAD.get(titulo, "—")), ("Compatibilidad", "Excel 2016, 2019, 2021 y Microsoft 365 (Windows y Mac)"),
+             ("Idioma y moneda", "Español (México) · Pesos mexicanos (MXN) · IVA 16%"), ("Protección", "Hojas protegidas sin contraseña (Revisar > Desproteger hoja)"),
+             ("Fuente", "Arial (disponible en Windows, Mac y Google Sheets)")]
+    for k_, v_ in ficha:
+        ws.cell(r, 3, k_).font = Font(size=10, bold=True, color=COLOR)
+        ws.cell(r, 3).alignment = Alignment(vertical="center")
+        _texto_merge(ws, r, 4, 6, v_, ancho_chars=78)
+        for cc in (3, 4, 5, 6):
+            ws.cell(r, cc).border = Border(bottom=Side(style="thin", color="E3E8ED"))
         r += 1
     r += 1
     _seccion(ws, r, "CÓMO USARLO")
@@ -384,7 +438,8 @@ def instrucciones(wb, titulo, pasos):
     r += 1
     _seccion(ws, r, "LEYENDA DE COLORES")
     r += 1
-    for color, txt in ((INPUT, "CELDA DE CAPTURA: escribe aquí."), (CALC, "CÁLCULO AUTOMÁTICO: no la modifiques."), (COLOR, "ENCABEZADOS Y TÍTULOS.")):
+    for color, txt in ((INPUT, "CELDA DE CAPTURA: escribe aquí."), (CALC, "CÁLCULO AUTOMÁTICO: no la modifiques."), (COLOR, "ENCABEZADOS Y TÍTULOS."),
+                       ("FFFFFF", "* CAMPO OBLIGATORIO: complétalo antes de imprimir o enviar.")):
         sw = ws.cell(r, 2, "")
         sw.fill = PatternFill("solid", fgColor=color)
         sw.border = BORDE
@@ -475,6 +530,27 @@ def instrucciones(wb, titulo, pasos):
     ay.sheet_properties.pageSetUpPr.fitToPage = True
 
 
+
+def barras(ws, rango, color):
+    from openpyxl.formatting.rule import DataBarRule
+    ws.conditional_formatting.add(rango, DataBarRule(start_type="num", start_value=0, end_type="max", color=GRAFICA.get(color, color), showValue=True))
+
+
+def iconos(ws, rango, umbrales, invertir=False):
+    from openpyxl.formatting.rule import IconSetRule
+    ws.conditional_formatting.add(rango, IconSetRule("3TrafficLights1", "num", list(umbrales), showValue=True, reverse=invertir))
+
+
+def insight(rs, formula, fila=7):
+    """Línea de lectura rápida bajo los indicadores: texto automático con el hallazgo principal."""
+    rs.merge_cells(start_row=fila, start_column=2, end_row=fila, end_column=9)
+    c = rs.cell(fila, 2, formula)
+    c.font = Font(size=10, italic=True, color=COLOR)
+    c.alignment = Alignment(wrap_text=True, vertical="center")
+    c.fill = PatternFill("solid", fgColor="FFF8E1")
+    c.border = Border(left=Side(style="thick", color=GOLD))
+    rs.row_dimensions[fila].height = 30
+
 # ------------------------------------------------------------------ TABLERO (Resumen)
 from openpyxl.chart import BarChart, LineChart, PieChart, Reference
 from openpyxl.chart.label import DataLabelList
@@ -490,14 +566,14 @@ def hoja_resumen(wb, titulo, subtitulo, nombre="RESUMEN"):
 
 def kpi(ws, col, etiqueta, formula, fmt=MXN, fila=4):
     """Tarjeta de indicador de 2 columnas: etiqueta arriba, valor grande abajo."""
-    for r_, alto in ((fila, 20), (fila + 1, 36)):
+    for r_, alto in ((fila, 22), (fila + 1, 46)):
         ws.row_dimensions[r_].height = alto
         ws.merge_cells(start_row=r_, start_column=col, end_row=r_, end_column=col + 1)
     a = ws.cell(fila, col, etiqueta)
     a.font = Font(size=9, bold=True, color=PETROL)
     a.alignment = Alignment(horizontal="center", vertical="center")
     b = ws.cell(fila + 1, col, formula)
-    b.font = Font(size=18, bold=True, color=COLOR)
+    b.font = Font(size=24, bold=True, color=COLOR)
     b.number_format = fmt
     b.alignment = Alignment(horizontal="center", vertical="center")
     for r_ in (fila, fila + 1):
@@ -509,7 +585,11 @@ def kpi(ws, col, etiqueta, formula, fmt=MXN, fila=4):
                               bottom=thin if r_ == fila + 1 else None)
 
 
+GRAFICA = {COLOR: "2A6FBA", GOLD: "E69F00", PETROL: "12A0A8", CORAL: "E4572E", "8A97A3": "8A97A3", "63BE7B": "3DAE6B"}
+
+
 def colorear(chart, colores=(COLOR, GOLD, PETROL, "8A97A3")):
+    colores = tuple(GRAFICA.get(c_, c_) for c_ in colores)
     for i, ser in enumerate(chart.series):
         ser.graphicalProperties.solidFill = colores[i % len(colores)]
         ser.graphicalProperties.line.solidFill = colores[i % len(colores)]
@@ -522,9 +602,14 @@ def grafica_barras(titulo, horizontal=False, ancho=11.5, alto=7.2):
     ch.width, ch.height = ancho, alto
     ch.legend.position = "b"
     ch.y_axis.numFmt = '"$"#,##0'
-    ch.y_axis.majorGridlines = None
+    ch.gapWidth = 70
     ch.x_axis.delete = False
     ch.y_axis.delete = False
+    from openpyxl.chart.shapes import GraphicalProperties
+    from openpyxl.drawing.line import LineProperties
+    ch.graphical_properties = GraphicalProperties(ln=LineProperties(noFill=True))
+    ch.y_axis.majorGridlines.spPr = GraphicalProperties(ln=LineProperties(solidFill="E3E8ED", w=6350))
+    ch.roundedCorners = False
     return ch
 
 
@@ -589,6 +674,11 @@ def ingresos_gastos():
     g2.set_categories(Reference(rs, min_col=7, min_row=t0 + 1, max_row=t0 + 15))
     colorear(g2, (PETROL, GOLD))
     rs.add_chart(g2, "B24")
+    barras(ws, f"F{f0}:F{f1}", "2A6FBA")
+    barras(ws, f"G{f0}:G{f1}", CORAL)
+    insight(rs, f'=IF(SUM(D{t0+1}:D{t0+12})+SUM(C{t0+1}:C{t0+12})=0,"Captura movimientos en la hoja FORMATO para ver el análisis automático.",'
+                f'"Mayor gasto: "&INDEX(G{t0+1}:G{t0+15},MATCH(MAX(I{t0+1}:I{t0+15}),I{t0+1}:I{t0+15},0))&" ("&TEXT(IFERROR(MAX(I{t0+1}:I{t0+15})/SUM(I{t0+1}:I{t0+15}),0),"0%")&" del gasto total). '
+                f'Mes con más ingresos: "&INDEX(B{t0+1}:B{t0+12},MATCH(MAX(C{t0+1}:C{t0+12}),C{t0+1}:C{t0+12},0))&".")')
     instrucciones(wb, "Control de ingresos y gastos", [
         "Captura el saldo inicial del periodo en la celda de captura correspondiente.",
         "Registra cada movimiento: fecha, concepto, categoría (lista desplegable) y método de pago.",
@@ -635,11 +725,12 @@ def caja_chica():
     from openpyxl.chart.series import DataPoint
     for i_, col_ in enumerate((GOLD, PETROL)):
         pt = DataPoint(idx=i_)
-        pt.graphicalProperties.solidFill = col_
+        pt.graphicalProperties.solidFill = GRAFICA.get(col_, col_)
         pie.series[0].dPt.append(pt)
     rs.add_chart(pie, "B8")
     kpi(rs, 6, "IVA ACUMULADO", f"=FORMATO!G{f1+1}", fila=26)
     kpi(rs, 8, "VALES REGISTRADOS", f"=COUNT(FORMATO!F{f0}:F{f1})", "0", fila=26)
+    barras(ws, f"H{f0}:H{f1}", "12A0A8")
     instrucciones(wb, "Control de caja chica", [
         "Define el fondo fijo asignado.",
         "Registra cada vale con importe SIN IVA; el IVA (16%) y el total se calculan.",
@@ -777,6 +868,9 @@ def cuentas_por_cobrar():
     g1.legend = None
     colorear(g1, (COLOR,))
     rs.add_chart(g1, "B8")
+    barras(ws, f"I{f0}:I{f1}", "2A6FBA")
+    iconos(ws, f"J{f0}:J{f1}", [0, 1, 31], invertir=True)
+    insight(rs, f'=IF(B5=0,"Captura facturas en la hoja FORMATO para ver el análisis automático.","Mayor saldo: "&INDEX(FORMATO!B{f0}:B{f1},MATCH(MAX(FORMATO!I{f0}:I{f1}),FORMATO!I{f0}:I{f1},0))&" ($"&TEXT(MAX(FORMATO!I{f0}:I{f1}),"#,##0")&"). El "&TEXT(F5,"0%")&" de la cartera está vencida.")')
     instrucciones(wb, "Cuentas por cobrar", [
         "Registra cada factura emitida con fecha, días de crédito e importe.",
         "Cuando recibas un pago, captura el acumulado en la columna Abonos.",
@@ -959,6 +1053,8 @@ def nomina():
     g1.legend = None
     colorear(g1, (PETROL,))
     rs.add_chart(g1, "B8")
+    barras(ws, f"K{f0}:K{f1}", "2A6FBA")
+    insight(rs, f'=IF(H5=0,"Captura empleados en la hoja FORMATO para ver el análisis automático.","Mayor neto: "&INDEX(FORMATO!B{f0}:B{f1},MATCH(MAX(FORMATO!K{f0}:K{f1}),FORMATO!K{f0}:K{f1},0))&" ($"&TEXT(MAX(FORMATO!K{f0}:K{f1}),"#,##0")&"). Neto promedio por empleado: $"&TEXT(F5/H5,"#,##0")&".")')
     instrucciones(wb, "Nómina simplificada", [
         "Captura sueldo diario, días trabajados y horas extra de cada empleado.",
         "Las horas extra se pagan al doble de la hora ordinaria (jornada de 8 h).",
@@ -1121,9 +1217,11 @@ def inventario():
     from openpyxl.chart.series import DataPoint
     for i, col_ in enumerate((PETROL, GOLD, CORAL)):
         pt = DataPoint(idx=i)
-        pt.graphicalProperties.solidFill = col_
+        pt.graphicalProperties.solidFill = GRAFICA.get(col_, col_)
         pie.series[0].dPt.append(pt)
     rs.add_chart(pie, "B8")
+    barras(ws, f"K{f0}:K{f1}", "12A0A8")
+    insight(rs, f'=IF(D5=0,"Captura productos en la hoja FORMATO para ver el análisis automático.","Producto de mayor valor: "&INDEX(FORMATO!C{f0}:C{f1},MATCH(MAX(FORMATO!K{f0}:K{f1}),FORMATO!K{f0}:K{f1},0))&". Por reabastecer: "&F5&" · Sin stock: "&H5&".")')
     instrucciones(wb, "Control de inventario", [
         "Registra cada producto con su código, inventario inicial, costo y stock mínimo.",
         "Actualiza las columnas Entradas y Salidas con los totales del periodo.",
@@ -1470,6 +1568,7 @@ def presupuesto():
     g1.set_categories(Reference(rs, min_col=2, min_row=9, max_row=18))
     colorear(g1, (COLOR, GOLD))
     rs.add_chart(g1, "B21")
+    insight(rs, '=IF(SUM(C9:C18)=0,"Captura el presupuesto y el real en la hoja FORMATO para ver el análisis automático.","Mayor sobre-ejercicio: "&IF(MAX(E9:E18)<=0,"ninguno",INDEX(B9:B18,MATCH(MAX(E9:E18),E9:E18,0)))&". Ejecución global de ventas: "&TEXT(IFERROR(D9/C9,0),"0%")&".")', fila=7)
     instrucciones(wb, "Presupuesto anual", [
         "Por cada concepto hay dos renglones: Presup. (lo planeado) y Real (lo ejercido).",
         "Captura mes a mes. La columna Variación muestra Real - Presupuesto del primer renglón de cada concepto.",
@@ -1523,6 +1622,7 @@ def activos_fijos():
     g1.set_categories(Reference(rs, min_col=2, min_row=26, max_row=33))
     colorear(g1, (COLOR, GOLD))
     rs.add_chart(g1, "B8")
+    barras(ws, f"K{f0}:K{f1}", "12A0A8")
     instrucciones(wb, "Activos fijos", [
         "Registra cada activo con fecha de adquisición, costo (sin IVA) y categoría.",
         "La tasa se toma de la hoja 'Tasas' (referencia de porcentajes máximos de la LISR); edítala según tu criterio contable.",
@@ -1559,7 +1659,7 @@ def directorio():
     from openpyxl.chart.series import DataPoint
     for i_, col_ in enumerate((PETROL, GOLD, COLOR)):
         pt = DataPoint(idx=i_)
-        pt.graphicalProperties.solidFill = col_
+        pt.graphicalProperties.solidFill = GRAFICA.get(col_, col_)
         pie.series[0].dPt.append(pt)
     rs.add_chart(pie, "B8")
     instrucciones(wb, "Directorio", [
@@ -1717,6 +1817,11 @@ def control_operativo():
                     20: lambda r: f'=IF(S{r}="","",IF(S{r}>=1,"EN META",IF(S{r}>=0.9,"EN RIESGO","FUERA DE META")))'})
     lista(w, f"D{i0}:D{i1}", refs["SENTIDO DEL INDICADOR"])
     semaforo_cf(w, f"T{i0}:T{i1}")
+    barras(wb["ACTIVIDADES"], f"J{a0}:J{a1}", "12A0A8")
+    barras(wb["PROYECTOS"], f"H{p0}:H{p1}", "12A0A8")
+    barras(wb["PROYECTOS"], f"K{p0}:K{p1}", "E69F00")
+    iconos(wb["PROYECTOS"], f"L{p0}:L{p1}", [-1, -0.15, -0.05])
+    iconos(wb["INDICADORES"], f"S{i0}:S{i1}", [0, 0.9, 1])
     # ------------------------------------------------ TABLERO
     t = hoja_resumen(wb, "TABLERO EJECUTIVO SEMANAL", "Lectura rápida para dirección: avances, pendientes, riesgos y decisiones", nombre="TABLERO")
     A = lambda col: f"ACTIVIDADES!${col}${a0}:${col}${a1}"
@@ -1767,7 +1872,7 @@ def control_operativo():
     from openpyxl.chart.series import DataPoint
     for i_, col_ in enumerate(("8A97A3", PETROL, "63BE7B", CORAL)):
         pt = DataPoint(idx=i_)
-        pt.graphicalProperties.solidFill = col_
+        pt.graphicalProperties.solidFill = GRAFICA.get(col_, col_)
         pie.series[0].dPt.append(pt)
     t.add_chart(pie, "B12")
     g2 = grafica_barras("Riesgos por clasificación", ancho=11.5, alto=7.5)
@@ -1801,9 +1906,226 @@ def control_operativo():
     guardar(wb, "7_Control_Directivo", "01_Control_Operativo_Semanal")
 
 
+# ------------------------------------------------------------ PRESUPUESTO COMERCIAL PREMIUM (3 OPCIONES)
+PC_FASES = [("FASE 1 · ORDENAR (DIAGNÓSTICO)", 6), ("FASE 2 · PLANEAR E IMPLEMENTAR", 6), ("FASE 3 · EJECUTAR Y CERRAR", 5)]
+PC_OPCIONES = ("ESENCIAL", "PROFESIONAL", "ESTRATÉGICO")
+PC_ITEMS0 = 12   # primera fila de la tabla (banda de la fase 1)
+
+
+def pc_filas():
+    """Devuelve (filas de ítems por fase, filas de subtotal, fila final de la tabla)."""
+    r, items, subs = PC_ITEMS0, [], []
+    for _, n in PC_FASES:
+        r += 1                       # banda
+        items.append(list(range(r, r + n)))
+        r += n
+        subs.append(r)               # subtotal de fase
+        r += 1
+    return items, subs, r - 1
+
+
+def presupuesto_comercial():
+    from openpyxl.formatting.rule import FormulaRule
+    wb, ws = libro("PRESUPUESTO COMERCIAL · TRES OPCIONES", "Esencial, profesional y estratégico: inversión, alcance y condiciones",
+                   [24, 54, 12, 15, 16, 17, 17, 17, 17, 17], hoja="PRESUPUESTO")
+    items, subs, fin = pc_filas()
+    campo(ws, 4, 1, "Cliente", 3)
+    campo(ws, 4, 5, "Folio", 2)
+    campo(ws, 5, 1, "Proyecto", 3)
+    campo(ws, 5, 5, "Fecha", 2, None, FECHA)
+    campo(ws, 6, 1, "Elaboró", 3)
+    campo(ws, 6, 5, "Vigencia (días)", 2, 15)
+    campo(ws, 7, 1, "Opción recomendada", 3, "PROFESIONAL")
+    campo(ws, 7, 5, "IVA", 2, 0.16, "0%")
+    lista(ws, "B7", list(PC_OPCIONES))
+    # cintas "RECOMENDADA" y lema de cada opción
+    for k, col in enumerate("HIJ"):
+        c = ws[f"{col}9"]
+        c.value = f'=IF($B$7={col}$11,"★ RECOMENDADA","")'
+        c.font = Font(bold=True, size=10, color=COLOR)
+        c.alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[9].height = 22
+        t = ws[f"{col}10"]
+        t.value = ("PARA EMPEZAR", "EL MÁS ELEGIDO", "MÁXIMO CONTROL")[k]
+        t.fill = PatternFill("solid", fgColor=INPUT)
+        t.border = BORDE
+        t.font = Font(italic=True, size=9, color="5B6B78")
+        t.alignment = Alignment(horizontal="center", vertical="center")
+    ws.merge_cells("A9:G9")
+    ws["A9"] = "Marca con * lo obligatorio. Captura cantidad 0 en las opciones que NO incluyen un concepto."
+    ws["A9"].font = Font(italic=True, size=9, color="5B6B78")
+    encabezado(ws, 11, ["Clave", "Concepto", "Tipo", "Precio unitario", "Cant. esencial", "Cant. profesional", "Cant. estratégico", *PC_OPCIONES])
+    ws.row_dimensions[11].height = 34
+    r = PC_ITEMS0
+    for k, (nombre, n) in enumerate(PC_FASES):
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=10)
+        b = ws.cell(r, 1, nombre)
+        b.font = Font(bold=True, color="FFFFFF", size=10)
+        b.fill = PatternFill("solid", fgColor=PETROL)
+        b.alignment = Alignment(vertical="center", indent=1)
+        ws.row_dimensions[r].height = 22
+        filas(ws, items[k][0], items[k][-1], 10, {4: MXN, 5: "0", 6: "0", 7: "0", 8: MXN, 9: MXN, 10: MXN},
+              {8: lambda x: f'=IF(OR($D{x}="",E{x}=""),"",$D{x}*E{x})', 9: lambda x: f'=IF(OR($D{x}="",F{x}=""),"",$D{x}*F{x})',
+               10: lambda x: f'=IF(OR($D{x}="",G{x}=""),"",$D{x}*G{x})'})
+        lista(ws, f"C{items[k][0]}:C{items[k][-1]}", ["DIRECTO", "INDIRECTO"])
+        sr = subs[k]
+        ws.cell(sr, 2, f"SUBTOTAL {nombre.split(' · ')[0]}").font = Font(bold=True, size=9, color=COLOR)
+        ws.cell(sr, 2).alignment = Alignment(horizontal="right")
+        for col in "HIJ":
+            c = ws[f"{col}{sr}"]
+            c.value = f"=SUM({col}{items[k][0]}:{col}{items[k][-1]})"
+            c.number_format = MXN
+            c.font = Font(bold=True, size=10, color=COLOR)
+            c.fill = PatternFill("solid", fgColor=CLARO)
+            c.border = BORDE
+        r = sr + 1
+    # ---- totales
+    t0 = fin + 2
+    rng = lambda col: f"{col}{PC_ITEMS0}:{col}{fin}"
+    etq = ["COSTOS DIRECTOS", "COSTOS INDIRECTOS", "SUBTOTAL", "DESCUENTO (%)", "DESCUENTO ($)", "SUBTOTAL NETO", "IVA", "TOTAL DE LA INVERSIÓN",
+           "DURACIÓN (SEMANAS)", "INVERSIÓN POR SEMANA"]
+    for i, e in enumerate(etq):
+        rr = t0 + i
+        ws.merge_cells(start_row=rr, start_column=1, end_row=rr, end_column=7)
+        c = ws.cell(rr, 1, e)
+        c.alignment = Alignment(horizontal="right", vertical="center")
+        c.font = Font(bold=True, size=11 if e.startswith("TOTAL") else 10, color=COLOR)
+        ws.row_dimensions[rr].height = 30 if e.startswith("TOTAL") else 20
+        for col in "HIJ":
+            x = ws[f"{col}{rr}"]
+            x.border = BORDE
+            x.number_format = MXN
+            x.alignment = Alignment(vertical="center")
+            if e == "COSTOS DIRECTOS":
+                x.value = f'=SUMIF($C${PC_ITEMS0}:$C${fin},"DIRECTO",{rng(col)})'
+            elif e == "COSTOS INDIRECTOS":
+                x.value = f'=SUMIF($C${PC_ITEMS0}:$C${fin},"INDIRECTO",{rng(col)})'
+            elif e == "SUBTOTAL":
+                x.value = f"={col}{t0}+{col}{t0 + 1}"
+            elif e == "DESCUENTO (%)":
+                x.number_format = "0%"
+                x.value = 0
+                x.fill = PatternFill("solid", fgColor=INPUT)
+                continue
+            elif e == "DESCUENTO ($)":
+                x.value = f"={col}{t0 + 2}*{col}{t0 + 3}"
+            elif e == "SUBTOTAL NETO":
+                x.value = f"={col}{t0 + 2}-{col}{t0 + 4}"
+            elif e == "IVA":
+                x.value = f"={col}{t0 + 5}*$F$7"
+            elif e == "TOTAL DE LA INVERSIÓN":
+                x.value = f"={col}{t0 + 5}+{col}{t0 + 6}"
+                x.font = Font(bold=True, size=13, color="FFFFFF")
+                x.fill = PatternFill("solid", fgColor=COLOR)
+                continue
+            elif e == "DURACIÓN (SEMANAS)":
+                x.number_format = "0"
+                x.fill = PatternFill("solid", fgColor=INPUT)
+                continue
+            elif e == "INVERSIÓN POR SEMANA":
+                x.value = f'=IF(OR({col}{t0 + 8}="",{col}{t0 + 8}=0),"",{col}{t0 + 7}/{col}{t0 + 8})'
+            x.fill = PatternFill("solid", fgColor=CALC)
+    TOT, SEM = t0 + 7, t0 + 8
+    # ---- cronograma de pagos
+    c0 = t0 + len(etq) + 1
+    ws.merge_cells(start_row=c0, start_column=1, end_row=c0, end_column=10)
+    ws.cell(c0, 1, "CRONOGRAMA DE PAGOS").font = Font(bold=True, color="FFFFFF")
+    ws.cell(c0, 1).fill = PatternFill("solid", fgColor=PETROL)
+    ws.cell(c0, 1).alignment = Alignment(vertical="center", indent=1)
+    pagos = [("ANTICIPO AL INICIO", 0.4), ("PAGO POR AVANCE (A MITAD DEL PROYECTO)", 0.3), ("PAGO AL CIERRE Y ENTREGA", 0.3)]
+    for i, (n, pct) in enumerate(pagos, 1):
+        rr = c0 + i
+        ws.merge_cells(start_row=rr, start_column=1, end_row=rr, end_column=3)
+        ws.cell(rr, 1, n).font = Font(bold=True, size=10, color=COLOR)
+        d = ws.cell(rr, 4, pct)
+        d.number_format = "0%"
+        d.fill = PatternFill("solid", fgColor=INPUT)
+        d.border = BORDE
+        for col in "HIJ":
+            x = ws[f"{col}{rr}"]
+            x.value = f"={col}${TOT}*$D{rr}"
+            x.number_format = MXN
+            x.fill = PatternFill("solid", fgColor=CALC)
+            x.border = BORDE
+    rv = c0 + 4
+    ws.merge_cells(start_row=rv, start_column=1, end_row=rv, end_column=3)
+    ws.cell(rv, 1, "VERIFICACIÓN (DEBE SUMAR 100%)").font = Font(bold=True, size=9, color="5B6B78")
+    v = ws.cell(rv, 4, f'=IF(ROUND(SUM(D{c0 + 1}:D{c0 + 3}),4)=1,"✔ 100%","✘ AJUSTA LOS %")')
+    v.font = Font(bold=True, color=COLOR)
+    # ---- resaltado de la opción recomendada
+    ws.conditional_formatting.add("H11:J11", FormulaRule(formula=["H$11=$B$7"], fill=PatternFill("solid", bgColor="C9A227", fgColor="C9A227"), font=_Font(name=FUENTE, bold=True, color=COLOR), stopIfTrue=True))
+    ws.conditional_formatting.add(f"H{TOT}:J{TOT}", FormulaRule(formula=["H$11=$B$7"], fill=PatternFill("solid", bgColor="C9A227", fgColor="C9A227"), font=_Font(name=FUENTE, bold=True, size=13, color=COLOR), stopIfTrue=True))
+    ws.conditional_formatting.add(f"H9:J10", FormulaRule(formula=[f"H$11=$B$7"], fill=PatternFill("solid", bgColor="FFF4CC", fgColor="FFF4CC")))
+    ws.conditional_formatting.add(f"H12:J{TOT - 1}", FormulaRule(formula=[f"H$11=$B$7"], fill=PatternFill("solid", bgColor="FFF4CC", fgColor="FFF4CC")))
+    ws.conditional_formatting.add(f"H{TOT + 1}:J{rv}", FormulaRule(formula=[f"H$11=$B$7"], fill=PatternFill("solid", bgColor="FFF4CC", fgColor="FFF4CC")))
+    ws.freeze_panes = "C12"
+    ws.page_setup.fitToHeight = 0
+    # ---------------- hoja ALCANCE
+    al = wb.create_sheet("ALCANCE")
+    banner(al, "ALCANCE Y CONDICIONES POR OPCIÓN", "Lo que incluye cada opción, qué se entrega y qué queda fuera", [24, 46, 46, 46])
+    al.sheet_properties.tabColor = PETROL
+    encabezado(al, 4, ["Concepto", *PC_OPCIONES])
+    al["C3"] = '=IF($B$7="","",IF(PRESUPUESTO!$B$7=C4,"★ RECOMENDADA",""))'
+    for k, col in enumerate("BCD"):
+        al[f"{col}3"] = f'=IF(PRESUPUESTO!$B$7={col}4,"★ RECOMENDADA","")'
+        al[f"{col}3"].font = Font(bold=True, color=COLOR)
+        al[f"{col}3"].alignment = Alignment(horizontal="center")
+    al["C3"] = '=IF(PRESUPUESTO!$B$7=C4,"★ RECOMENDADA","")'
+    al["C3"].font = Font(bold=True, color=COLOR)
+    al["C3"].alignment = Alignment(horizontal="center")
+    filas_txt = [("ALCANCE", ["[Diagnóstico y plan de trabajo]", "[Diagnóstico, implementación de controles y tablero]", "[Implementación integral, capacitación y soporte]"]),
+                 ("ENTREGABLES", ["[Informe de diagnóstico · Libro de control]", "[Informe · Libro de control · Tablero · Reporte semanal]", "[Todo lo anterior · Procedimientos · Plan a 90 días]"]),
+                 ("TIEMPO DE ENTREGA", ["[4 semanas]", "[6 semanas]", "[8 semanas]"]),
+                 ("BENEFICIOS CLAVE", ["[Orden y visibilidad inicial]", "[Control semanal y decisiones con información]", "[Operación estandarizada y cierre con evidencia]"]),
+                 ("EXCLUSIONES", ["[Capacitación · Soporte posterior]", "[Soporte posterior al cierre]", "[Trámites ante autoridades]"]),
+                 ("CONDICIONES COMERCIALES", ["[Pago 40/30/30 · Vigencia 15 días]", "[Pago 40/30/30 · Vigencia 15 días]", "[Pago 40/30/30 · Vigencia 15 días]"])]
+    for i, (e, vals) in enumerate(filas_txt):
+        rr = 5 + i
+        al.row_dimensions[rr].height = 64
+        c = al.cell(rr, 1, e)
+        c.font = Font(bold=True, color=COLOR)
+        c.fill = PatternFill("solid", fgColor=CLARO)
+        c.border = BORDE
+        c.alignment = Alignment(vertical="center", wrap_text=True)
+        for j, vv in enumerate(vals):
+            x = al.cell(rr, 2 + j, vv)
+            x.fill = PatternFill("solid", fgColor=INPUT)
+            x.border = BORDE
+            x.alignment = Alignment(wrap_text=True, vertical="top")
+    al.conditional_formatting.add("B4:D4", FormulaRule(formula=["B$4=PRESUPUESTO!$B$7"], fill=PatternFill("solid", bgColor="C9A227", fgColor="C9A227"), font=_Font(name=FUENTE, bold=True, color=COLOR), stopIfTrue=True))
+    al.conditional_formatting.add("B3:D3", FormulaRule(formula=["B$4=PRESUPUESTO!$B$7"], fill=PatternFill("solid", bgColor="FFF4CC", fgColor="FFF4CC")))
+    al.conditional_formatting.add("B5:D10", FormulaRule(formula=["B$4=PRESUPUESTO!$B$7"], fill=PatternFill("solid", bgColor="FFF4CC", fgColor="FFF4CC")))
+    al.freeze_panes = "B5"
+    # ---------------- RESUMEN
+    rs = hoja_resumen(wb, "ANÁLISIS DE VALOR", "Comparativo de inversión por opción y por fase")
+    PRE = "PRESUPUESTO"
+    kpi(rs, 2, "OPCIÓN RECOMENDADA", f"={PRE}!B7", "@")
+    kpi(rs, 4, "INVERSIÓN RECOMENDADA", f"=IFERROR(INDEX({PRE}!H{TOT}:J{TOT},MATCH({PRE}!B7,{PRE}!H11:J11,0)),0)")
+    kpi(rs, 6, "BRECHA ENTRE OPCIONES", f"={PRE}!J{TOT}-{PRE}!H{TOT}")
+    kpi(rs, 8, "INVERSIÓN POR SEMANA (REC.)", f'=IFERROR(INDEX({PRE}!H{t0 + 9}:J{t0 + 9},MATCH({PRE}!B7,{PRE}!H11:J11,0)),0)')
+    insight(rs, f'=IF(D5=0,"Captura conceptos y precios en la hoja PRESUPUESTO para ver el análisis.","La opción "&B5&" requiere $"&TEXT(D5,"#,##0")&" (IVA incluido). Pasar de la esencial a la estratégica agrega $"&TEXT(F5,"#,##0")&" de inversión a cambio de mayor alcance y control.")')
+    tabla_simple(rs, 25, 2, ["Opción", "Fase 1", "Fase 2", "Fase 3", "Total sin IVA"],
+                 [[o, f"={PRE}!{c}{subs[0]}", f"={PRE}!{c}{subs[1]}", f"={PRE}!{c}{subs[2]}", f"={PRE}!{c}{t0 + 5}"] for o, c in zip(PC_OPCIONES, "HIJ")], {1: MXN, 2: MXN, 3: MXN, 4: MXN})
+    rs.column_dimensions["B"].width = 26
+    g = grafica_barras("Inversión por fase y opción (sin IVA)", ancho=23.5, alto=8.5)
+    g.grouping = "stacked"
+    g.overlap = 100
+    g.add_data(Reference(rs, min_col=3, max_col=5, min_row=25, max_row=28), titles_from_data=True)
+    g.set_categories(Reference(rs, min_col=2, min_row=26, max_row=28))
+    colorear(g, (COLOR, PETROL, GOLD))
+    rs.add_chart(g, "B9")
+    instrucciones(wb, "Presupuesto comercial", [
+        "Captura cliente, proyecto, fecha y elige la OPCIÓN RECOMENDADA (celda B7): se resalta en dorado en todo el libro.",
+        "En cada fase escribe clave, concepto, tipo (directo/indirecto), precio unitario y la cantidad que incluye cada opción; cantidad 0 = no incluye.",
+        "Captura descuento (%) y duración en semanas por opción; el IVA, el total y la inversión por semana se calculan solos.",
+        "Ajusta el cronograma de pagos; la celda de verificación confirma que suma 100%.",
+        "Redacta alcance, entregables, beneficios, exclusiones y condiciones en la hoja ALCANCE y revisa el ANÁLISIS DE VALOR antes de enviar."])
+    guardar(wb, "8_Propuestas_y_Presupuestos", "01_Presupuesto_Comercial_3_Opciones")
+
+
 if __name__ == "__main__":
     for f in (ingresos_gastos, caja_chica, flujo_efectivo, cuentas_por_cobrar, conciliacion,
               asistencia, nomina, vacaciones, evaluacion, solicitud_permiso,
               inventario, kardex, orden_compra, cotizacion_comparativa,
-              cotizacion, recibo, minuta, presupuesto, activos_fijos, directorio, control_operativo):
+              cotizacion, recibo, minuta, presupuesto, activos_fijos, directorio, control_operativo, presupuesto_comercial):
         f()
