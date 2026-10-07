@@ -5,11 +5,23 @@ import datetime as dt
 import os
 import shutil
 from openpyxl import load_workbook
+from generar_plantillas import CAJA_F1, INPUT
 
 RAIZ = os.path.dirname(os.path.abspath(__file__))
 PLANT = os.path.join(RAIZ, "plantillas")
 EJ = os.path.join(RAIZ, "ejemplos")
 D = dt.date
+
+
+def mayus(wb):
+    """Nombres, conceptos y textos de captura en MAYÚSCULAS (formato recomendado)."""
+    for ws in wb.worksheets:
+        for fila in ws.iter_rows():
+            for c in fila:
+                f = c.fill
+                if (isinstance(c.value, str) and not c.value.startswith("=") and f and f.fill_type == "solid"
+                        and str(f.fgColor.rgb).endswith(INPUT) and c.value not in ("☐", "☑")):
+                    c.value = c.value.upper()
 
 
 def poner(ws, datos):
@@ -51,18 +63,35 @@ def ingresos_gastos(ws):
         (D(2026, 9, 23), "Intereses ganados", "Otros ingresos", "Transferencia", 320, None),
         (D(2026, 9, 25), "Venta mostrador", "Ventas", "Efectivo", 21300, None),
         (D(2026, 9, 28), "Reparaciones menores", "Otros gastos", "Efectivo", None, 1180)])
+    extra = [(2, "Venta mostrador", "Ventas", "Efectivo", 9800, None), (4, "Pago de internet y teléfono", "Servicios (luz/agua/tel)", "Tarjeta", None, 1250),
+             (6, "Servicio de consultoría", "Servicios", "Transferencia", 7500, None), (8, "Compra de insumos de limpieza", "Insumos", "Efectivo", None, 860),
+             (11, "Venta mayoreo", "Ventas", "Transferencia", 31200, None), (13, "Mantenimiento de equipo de cómputo", "Mantenimiento", "Tarjeta", None, 2400),
+             (16, "Venta mostrador", "Ventas", "Efectivo", 12400, None), (18, "Combustible", "Transporte", "Tarjeta", None, 1320),
+             (21, "Servicio de capacitación", "Servicios", "Transferencia", 14500, None), (22, "Pago ISR provisional", "Impuestos", "Transferencia", None, 4380),
+             (24, "Venta mostrador", "Ventas", "Efectivo", 16800, None), (26, "Publicidad impresa", "Publicidad", "Tarjeta", None, 1900),
+             (27, "Venta mayoreo", "Ventas", "Transferencia", 22800, None), (29, "Pago de renta bodega", "Renta", "Transferencia", None, 6200)]
+    filas(ws, 24, 2, [(D(2026, 9, d_), *resto) for d_, *resto in extra])
+    hist = []
+    for m_ in range(1, 9):
+        hist += [(D(2026, m_, 5), "Venta mostrador", "Ventas", "Efectivo", 14000 + m_ * 1700, None),
+                 (D(2026, m_, 12), "Servicio de consultoría", "Servicios", "Transferencia", 8000 + m_ * 900, None),
+                 (D(2026, m_, 15), "Nómina quincenal", "Nómina", "Transferencia", None, 13500 + m_ * 100),
+                 (D(2026, m_, 20), "Pago de renta", "Renta", "Transferencia", None, 8500),
+                 (D(2026, m_, 24), "Insumos y papelería", "Insumos", "Tarjeta", None, 1800 + m_ * 120),
+                 (D(2026, m_, 27), "Publicidad en redes", "Publicidad", "Tarjeta", None, 2500)]
+    filas(ws, 38, 2, hist)
 
 
 def caja_chica(ws):
     poner(ws, {"B4": "María González", "F4": D(2026, 9, 1), "B5": 2000})
     filas(ws, 8, 2, [
-        (D(2026, 9, 2), "V-001", "Papelería y tóner", "Office Depot", 450),
-        (D(2026, 9, 4), "V-002", "Agua purificada", "Garrafones del Norte", 180),
-        (D(2026, 9, 8), "V-003", "Mensajería urgente", "Estafeta", 260),
-        (D(2026, 9, 11), "V-004", "Material de limpieza", "Súper Mercado", 395),
-        (D(2026, 9, 16), "V-005", "Café y consumibles", "Costco", 520)])
-    total = sum(x * 1.16 for x in (450, 180, 260, 395, 520))
-    ws["B51"] = round(2000 - total, 2)
+        (D(2026, 9, 2), "V-001", "Papelería y tóner", "Office Depot", 350),
+        (D(2026, 9, 4), "V-002", "Agua purificada", "Garrafones del Norte", 150),
+        (D(2026, 9, 8), "V-003", "Mensajería urgente", "Estafeta", 210),
+        (D(2026, 9, 11), "V-004", "Material de limpieza", "Súper Mercado", 295),
+        (D(2026, 9, 16), "V-005", "Café y consumibles", "Costco", 420)])
+    total = sum(x * 1.16 for x in (350, 150, 210, 295, 420))
+    ws[f"B{CAJA_F1 + 4}"] = round(2000 - total, 2)
 
 
 def flujo(ws):
@@ -91,6 +120,12 @@ def cxc(ws):
         ("Farmacias San Rafael", "F-1058", D(2026, 9, 22), 15, 18900, 0),
         ("Transportes Veloz", "F-1063", D(2026, 9, 30), 30, 92000, 0),
         ("Alimentos del Valle", "F-1066", D(2026, 10, 3), 45, 41250, 0)])
+    reg(ws, 15, [2, 3, 4, 5, 7, 8], [
+        ("Colegio Anáhuac del Sur", "F-1069", D(2026, 5, 18), 30, 28700, 0),
+        ("Taller Mecánico Rivera", "F-1070", D(2026, 8, 5), 15, 15400, 15400),
+        ("Inmobiliaria Torres Díaz", "F-1074", D(2026, 9, 2), 30, 67800, 30000),
+        ("Clínica Santa Lucía", "F-1075", D(2026, 9, 18), 30, 83600, 0)])
+
 
 def inventario(ws):
     poner(ws, {"B4": "Almacén central", "G4": D(2026, 10, 7)})
@@ -107,6 +142,14 @@ def inventario(ws):
         ("P-010", "Silla ergonómica", "Mobiliario", "Pieza", 14, 6, 9, 2450, 4),
         ("P-011", "Escritorio ejecutivo", "Mobiliario", "Pieza", 8, 2, 7, 4890, 3),
         ("P-012", "Clips estándar (caja)", "Papelería", "Caja", 200, 100, 140, 14, 50)])
+    reg(ws, 19, [2, 3, 4, 5, 6, 7, 8, 10, 12], [
+        ("P-013", "Calculadora científica", "Equipo", "Pieza", 20, 10, 18, 320, 6),
+        ("P-014", "Archivero metálico 4 gavetas", "Mobiliario", "Pieza", 6, 0, 5, 3290, 2),
+        ("P-015", "Etiquetas adhesivas (caja)", "Papelería", "Caja", 60, 30, 70, 54, 20),
+        ("P-016", "Sobre manila carta (100)", "Papelería", "Paquete", 45, 0, 38, 120, 12),
+        ("P-017", "Lámpara de escritorio LED", "Equipo", "Pieza", 15, 5, 12, 410, 5),
+        ("P-018", "Pizarrón blanco 90x120", "Mobiliario", "Pieza", 5, 0, 5, 1480, 2)])
+
 
 def presupuesto(ws):
     poner(ws, {"B4": "Comercializadora Ejemplo S.A. de C.V.", "G4": 2026})
@@ -128,6 +171,10 @@ def nomina(ws):
         ("José Hernández Ruiz", 350, 14, 6, 0, 640),
         ("Patricia Núñez Vega", 460, 15, 2, 250, 1030),
         ("Miguel Ángel Torres", 395, 15, 0, 0, 790)])
+    reg(ws, 14, [2, 3, 4, 5, 8, 10], [
+        ("Sofía Ramos Díaz", 430, 15, 0, 0, 840), ("Luis Castillo Mora", 365, 15, 3, 150, 720),
+        ("Daniela Fuentes Ibarra", 590, 15, 0, 400, 1510), ("Ricardo Salinas Paz", 480, 14, 2, 0, 960)])
+
 
 def cotizacion(ws):
     poner(ws, {"B3": "Tu Empresa S.A. de C.V.", "F3": "COT-2026-0142", "B4": "TEM260101AB1", "F4": D(2026, 10, 7),
@@ -178,6 +225,20 @@ def asistencia(ws):
             if i == 2 and 14 <= dia <= 18 and cod == "A":
                 cod = "V"
             ws.cell(7 + i, 2 + dia, cod)
+    mas = ["Sofía Ramos Díaz", "Luis Castillo Mora", "Daniela Fuentes Ibarra", "Ricardo Salinas Paz", "Fernanda Ochoa León", "Jorge Medina Rangel"]
+    for k, n in enumerate(mas):
+        i = 8 + k
+        ws.cell(7 + i, 2, n)
+        for dia in range(1, 31):
+            fecha = D(2026, 9, dia)
+            cod = "D" if fecha.weekday() >= 5 else "A"
+            if (i * 7 + dia) % 19 == 0 and cod == "A":
+                cod = "R"
+            if (i * 5 + dia) % 31 == 0 and cod == "A":
+                cod = "F"
+            if i == 11 and 7 <= dia <= 11 and cod == "A":
+                cod = "I"
+            ws.cell(7 + i, 2 + dia, cod)
 
 
 def vacaciones(ws):
@@ -222,17 +283,31 @@ def directorio(ws):
 
 
 def conciliacion(ws):
-    poner(ws, {"B4": "BBVA", "B5": "0123456789", "B6": "Septiembre 2026",
-               "C9": 184250.40, "C10": 12500, "C11": 8300.25, "C12": 0,
-               "C16": 188449.15, "C17": 320, "C18": 150, "C19": 0, "C20": 0})
-    filas(ws, 28, 2, [("Depósito 30-sep no reflejado", D(2026, 9, 30), 12500), ("Cheque 1045 sin cobrar", D(2026, 9, 28), 5400),
-                      ("Cheque 1046 sin cobrar", D(2026, 9, 29), 2900.25)])
+    poner(ws, {"B4": "BBVA", "B5": "0123456789", "B6": "Septiembre 2026", "B7": D(2026, 9, 30),
+               "C10": 184250.40, "C13": 0, "C17": 188280.15, "C20": 0, "C21": 0})
+    pt = ws.parent["PARTIDAS"]
+    reg(pt, 5, [2, 3, 4], [(D(2026, 9, 30), "Depósito de ventas 30-sep", 12500)])
+    reg(pt, 5, [8, 9, 10], [(D(2026, 9, 28), "Cheque 1045 Papelera del Centro", 5400),
+                            (D(2026, 9, 29), "Cheque 1046 Distribuidora Pluma", 2900.25)])
+    reg(pt, 5, [14, 15, 16, 17], [(D(2026, 9, 30), "Intereses ganados", "ABONO", 320),
+                                  (D(2026, 9, 30), "Comisión por manejo de cuenta", "CARGO", 150)])
 
 
 def recibo(ws):
     poner(ws, {"B3": "R-0215", "E3": D(2026, 10, 7), "B4": 15000, "B5": "Constructora Altamira S.A. de C.V.",
                "B6": "Quince mil pesos 00/100 M.N.", "B7": "Pago parcial de la factura F-1034 (servicios de mantenimiento)",
                "B8": "Transferencia", "E8": "SPEI 884520", "B10": 60000, "B11": 15000})
+
+
+def kardex(ws):
+    poner(ws, {"B4": "Papel bond carta (caja 5000)", "G4": "P-001", "B5": "Caja"})
+    reg(ws, 9, [2, 3, 4, 5, 6, 8], [
+        (D(2026, 9, 1), "INV-INICIAL", "Inventario inicial", 40, 760, None),
+        (D(2026, 9, 3), "FAC-5521", "Compra a Papelera del Centro", 60, 780, None),
+        (D(2026, 9, 5), "REM-0311", "Venta mostrador", None, None, 18),
+        (D(2026, 9, 12), "REM-0328", "Venta mayoreo", None, None, 30),
+        (D(2026, 9, 18), "FAC-5560", "Compra a Distribuidora Pluma", 40, 795, None),
+        (D(2026, 9, 24), "REM-0351", "Venta mostrador", None, None, 24)])
 
 
 EJEMPLOS = {
@@ -249,6 +324,7 @@ EJEMPLOS = {
     "2_Recursos_Humanos/03_Control_de_Vacaciones": vacaciones,
     "2_Recursos_Humanos/04_Evaluacion_de_Desempeno": evaluacion,
     "3_Inventarios_y_Compras/01_Control_de_Inventario": inventario,
+    "3_Inventarios_y_Compras/02_Kardex_Costo_Promedio": kardex,
     "3_Inventarios_y_Compras/03_Orden_de_Compra": orden_compra,
     "3_Inventarios_y_Compras/04_Cuadro_Comparativo_de_Cotizaciones": cuadro,
     "4_Documentos_y_Actas/01_Cotizacion": cotizacion,
@@ -260,7 +336,8 @@ def generar():
     shutil.rmtree(EJ, ignore_errors=True)
     for ruta, fn in EJEMPLOS.items():
         wb = load_workbook(os.path.join(PLANT, ruta + ".xlsx"))
-        fn(wb["Formato"])
+        fn(wb["FORMATO"])
+        mayus(wb)
         destino = os.path.join(EJ, ruta + "_EJEMPLO.xlsx")
         os.makedirs(os.path.dirname(destino), exist_ok=True)
         wb.save(destino)

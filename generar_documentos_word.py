@@ -25,9 +25,9 @@ def nuevo():
     s.left_margin = s.right_margin = Cm(2.5)
     s.top_margin = s.bottom_margin = Cm(2.3)
     st = d.styles["Normal"]
-    st.font.name = "Calibri"
+    st.font.name = "Abadi"
     st.font.size = Pt(11)
-    st.element.rPr.rFonts.set(qn("w:eastAsia"), "Calibri")
+    st.element.rPr.rFonts.set(qn("w:eastAsia"), "Abadi")
     st.font.color.rgb = RGBColor(0x2B, 0x2B, 0x2B)
     st.paragraph_format.space_after = Pt(8)
     st.paragraph_format.line_spacing = 1.15
@@ -168,7 +168,7 @@ def par(d, t, bold=False, align=None, indent=False):
 def clausula(d, nombre, texto):
     p = d.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    r = p.add_run(nombre + ". ")
+    r = p.add_run(nombre.upper() + ". ")
     r.bold = True
     r.font.color.rgb = AZUL
     runs(p, texto)
@@ -222,6 +222,8 @@ def tabla(d, encabezados, filas_vacias=5, anchos=None):
     tblPr.append(bs)
     if anchos:
         t.autofit = False
+        for i, w in enumerate(anchos):
+            t.columns[i].width = Cm(w)
         for row in t.rows:
             for i, w in enumerate(anchos):
                 row.cells[i].width = Cm(w)
@@ -237,8 +239,9 @@ def aviso(d):
 
 
 def guardar(d, nombre):
-    os.makedirs(OUT, exist_ok=True)
-    d.save(os.path.join(OUT, nombre + ".docx"))
+    carpeta = OUT if int(nombre[:2]) < 9 else OUT.replace("5_Documentos_Word", "6_Politicas_y_Procedimientos")
+    os.makedirs(carpeta, exist_ok=True)
+    d.save(os.path.join(carpeta, nombre + ".docx"))
     print("OK", nombre)
 
 
@@ -417,7 +420,309 @@ def carta_poder():
     guardar(d, "08_Carta_Poder_Simple")
 
 
+# ----------------------------------------------------------------- POLÍTICAS Y PROCEDIMIENTOS
+def ficha(d, codigo, version="1.0"):
+    t = d.add_table(rows=2, cols=4)
+    t.style = "Table Grid"
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    for i, (a, b) in enumerate((("CÓDIGO", codigo), ("VERSIÓN", version), ("FECHA DE EMISIÓN", "[DÍA/MES/AÑO]"), ("PRÓXIMA REVISIÓN", "[DÍA/MES/AÑO]"))):
+        h, v = t.cell(0, i), t.cell(1, i)
+        h.text = ""
+        r = h.paragraphs[0].add_run(a)
+        r.bold = True
+        r.font.size = Pt(8)
+        r.font.color.rgb = RGBColor(255, 255, 255)
+        h.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        sh = OxmlElement("w:shd")
+        sh.set(qn("w:val"), "clear")
+        sh.set(qn("w:fill"), "0B2A4A")
+        h._tc.get_or_add_tcPr().append(sh)
+        v.text = ""
+        runs(v.paragraphs[0], b)
+        v.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        for x in v.paragraphs[0].runs:
+            x.font.size = Pt(10)
+    d.add_paragraph()
+
+
+def seccion(d, titulo):
+    p = d.add_paragraph()
+    p.paragraph_format.space_before = Pt(10)
+    p.paragraph_format.keep_with_next = True
+    r = p.add_run(titulo.upper())
+    r.bold = True
+    r.font.size = Pt(11)
+    r.font.color.rgb = PETROL
+    borde_parrafo(p, color="C9D3DB", sz=6, espacio=2)
+
+
+def vinetas(d, items):
+    for it in items:
+        p = d.add_paragraph(style="List Bullet")
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        if it.startswith("**"):
+            negrita, resto = it[2:].split("**", 1)
+            runs(p, negrita, bold=True)
+            runs(p, resto)
+        else:
+            runs(p, it)
+
+
+def pasos_tabla(d, filas_, encabezados=("No.", "Actividad", "Responsable", "Registro / formato"), anchos=(1.2, 8.8, 3.2, 3.3)):
+    t = tabla(d, list(encabezados), len(filas_), list(anchos))
+    for i, fila in enumerate(filas_, 1):
+        for j, txt in enumerate(fila):
+            c = t.cell(i, j)
+            c.text = ""
+            runs(c.paragraphs[0], str(txt))
+            for x in c.paragraphs[0].runs:
+                x.font.size = Pt(9.5)
+            if j == 0:
+                c.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+    d.add_paragraph()
+
+
+def control_cambios(d):
+    seccion(d, "Control de cambios")
+    t = tabla(d, ["Versión", "Fecha", "Descripción del cambio", "Elaboró"], 2, [2, 3, 8.5, 3])
+    t.cell(1, 0).text, t.cell(1, 1).text, t.cell(1, 2).text, t.cell(1, 3).text = "1.0", "[FECHA]", "Emisión inicial", "[NOMBRE]"
+    d.add_paragraph()
+    firmas(d, ["Elaboró", "Revisó", "Autorizó"])
+    d.add_paragraph()
+    aviso(d)
+
+
+def doc_base(titulo, subtitulo, codigo):
+    d = nuevo()
+    titulo_doc(d, titulo, subtitulo)
+    ficha(d, codigo)
+    return d
+
+
+def titulo_doc(d, t, sub):
+    titulo(d, t, sub)
+
+
+def manual_caja_chica():
+    d = doc_base("Manual de procedimiento de caja chica", "Fondo fijo: apertura, operación, arqueo y reposición", "MP-ADM-01")
+    seccion(d, "1. Objetivo")
+    par(d, "Establecer las reglas para el manejo, control y reposición del fondo fijo de caja chica de [NOMBRE DE LA EMPRESA], con el fin de atender gastos menores "
+           "e imprevistos de forma ágil, con comprobación suficiente y sin riesgo de pérdida de recursos.")
+    seccion(d, "2. Alcance")
+    par(d, "Aplica a todas las áreas que soliciten recursos de caja chica y al personal responsable de su custodia, autorización y registro contable.")
+    seccion(d, "3. Definiciones")
+    vinetas(d, ["**Fondo fijo:** monto autorizado por Dirección que se mantiene constante mediante reposiciones.",
+                "**Vale provisional:** documento interno firmado por quien recibe el efectivo, mientras entrega su comprobante.",
+                "**Arqueo:** conteo físico del efectivo y los comprobantes para compararlos contra el fondo autorizado.",
+                "**Reposición:** reembolso del efectivo gastado, contra comprobantes autorizados."])
+    seccion(d, "4. Responsables")
+    pasos_tabla(d, [("1", "Autorizar apertura, monto y reposiciones del fondo", "Dirección / Finanzas", "Acta de autorización"),
+                    ("2", "Custodiar el fondo y operar el procedimiento", "Custodio de caja chica", "Bitácora de caja"),
+                    ("3", "Autorizar gastos de su área", "Jefe de área", "Vale provisional"),
+                    ("4", "Registrar contablemente y reponer el fondo", "Contabilidad", "Póliza de gastos")],
+                 ("No.", "Función", "Responsable", "Registro"))
+    seccion(d, "5. Políticas")
+    vinetas(d, ["El fondo fijo será de $[MONTO] MXN y se asignará por escrito a una sola persona responsable.",
+                "El monto máximo por gasto individual es de $[MONTO] MXN; los gastos mayores se tramitan por el procedimiento de compras.",
+                "Solo se pagan gastos menores, urgentes y no recurrentes. No se otorgan préstamos personales ni se cambian cheques.",
+                "Todo desembolso requiere vale provisional autorizado y comprobante fiscal (CFDI) o, en su defecto, nota con los datos del gasto.",
+                "Los comprobantes se entregan en un máximo de [2] días hábiles; los vales sin comprobar se descuentan vía nómina previa autorización del colaborador.",
+                "El fondo se repone cuando alcance el 30% del monto autorizado o al cierre de mes, lo que ocurra primero.",
+                "El efectivo se guarda bajo llave; el custodio no puede ser quien autoriza ni quien registra contablemente."])
+    seccion(d, "6. Procedimiento")
+    pasos_tabla(d, [("1", "El solicitante llena el vale provisional con concepto, importe y área y lo firma su jefe inmediato.", "Solicitante / Jefe de área", "Vale provisional"),
+                    ("2", "El custodio verifica autorización y monto, entrega el efectivo y registra el movimiento.", "Custodio", "Control de caja chica (Excel)"),
+                    ("3", "El solicitante compra y entrega comprobante y cambio en el plazo establecido.", "Solicitante", "Factura / ticket"),
+                    ("4", "El custodio cancela el vale, anexa el comprobante y actualiza el saldo.", "Custodio", "Control de caja chica"),
+                    ("5", "Cuando se alcance el nivel de reposición, el custodio integra los comprobantes y solicita el reembolso.", "Custodio", "Solicitud de reposición"),
+                    ("6", "Finanzas revisa, autoriza y emite el pago; Contabilidad registra.", "Finanzas / Contabilidad", "Póliza"),
+                    ("7", "Se realiza arqueo sorpresa mensual; la diferencia debe ser cero y se documenta.", "Finanzas", "Acta de arqueo")])
+    seccion(d, "7. Formatos relacionados")
+    vinetas(d, ["Control de caja chica (Excel).", "Vale provisional de caja.", "Acta de arqueo de caja."])
+    control_cambios(d)
+    guardar(d, "09_Manual_de_Procedimiento_de_Caja_Chica")
+
+
+def politica_compras():
+    d = doc_base("Política de compras y adquisiciones", "Lineamientos para solicitar, cotizar, autorizar y recibir bienes y servicios", "PO-COM-01")
+    seccion(d, "1. Objetivo")
+    par(d, "Garantizar que las compras de [NOMBRE DE LA EMPRESA] se realicen con las mejores condiciones de precio, calidad y servicio, con transparencia, "
+           "autorización adecuada y soporte documental.")
+    seccion(d, "2. Alcance")
+    par(d, "Aplica a todas las compras de bienes, materiales, equipo y contratación de servicios, sin importar el área solicitante ni el monto.")
+    seccion(d, "3. Niveles de autorización")
+    t = tabla(d, ["Monto de la compra (sin IVA)", "Cotizaciones mínimas", "Autoriza"], 4, [6, 4.5, 6])
+    for i, fila in enumerate([("Hasta $[MONTO 1]", "1", "Jefe de área"), ("De $[MONTO 1] a $[MONTO 2]", "2", "Gerencia"),
+                              ("De $[MONTO 2] a $[MONTO 3]", "3", "Dirección"), ("Mayor a $[MONTO 3]", "3 + contrato", "Dirección y Socios")], 1):
+        for j, v in enumerate(fila):
+            t.cell(i, j).text = ""
+            runs(t.cell(i, j).paragraphs[0], v)
+    d.add_paragraph()
+    seccion(d, "4. Políticas generales")
+    vinetas(d, ["Ninguna compra se realiza sin requisición autorizada y orden de compra emitida por el área de compras.",
+                "Se prefiere a proveedores registrados en el padrón; todo proveedor nuevo entrega constancia de situación fiscal, opinión de cumplimiento positiva y datos bancarios.",
+                "Se evita el fraccionamiento de compras para eludir niveles de autorización.",
+                "Quien solicita no puede ser quien autoriza ni quien recibe el bien.",
+                "Los pagos se realizan por transferencia contra factura (CFDI) y entrada de almacén; no se pagan anticipos sin autorización de Dirección.",
+                "Se evita cualquier conflicto de interés: el personal declara por escrito vínculos familiares o comerciales con proveedores.",
+                "No se aceptan obsequios de proveedores superiores a $[MONTO] MXN."])
+    seccion(d, "5. Procedimiento")
+    pasos_tabla(d, [("1", "El área solicitante elabora la requisición con descripción, cantidad y justificación.", "Solicitante", "Requisición"),
+                    ("2", "El jefe de área autoriza la requisición.", "Jefe de área", "Requisición firmada"),
+                    ("3", "Compras solicita las cotizaciones según el nivel de monto.", "Compras", "Solicitud de cotización"),
+                    ("4", "Compras integra el cuadro comparativo y recomienda proveedor.", "Compras", "Cuadro comparativo (Excel)"),
+                    ("5", "Se autoriza la compra según el nivel de aprobación.", "Autoriza", "Cuadro firmado"),
+                    ("6", "Compras emite la orden de compra y la envía al proveedor.", "Compras", "Orden de compra (Excel)"),
+                    ("7", "Almacén recibe, verifica contra la orden y registra la entrada.", "Almacén", "Entrada de almacén"),
+                    ("8", "Cuentas por pagar concilia orden, entrada y factura (3 vías) y programa el pago.", "Cuentas por pagar", "Factura / pago")])
+    seccion(d, "6. Evaluación de proveedores")
+    par(d, "Una vez al año se evalúa a los proveedores principales en cumplimiento de entrega, calidad, precio y atención. Los resultados determinan su permanencia en el padrón.")
+    seccion(d, "7. Formatos relacionados")
+    vinetas(d, ["Orden de compra (Excel).", "Cuadro comparativo de cotizaciones (Excel).", "Directorio de clientes y proveedores (Excel)."])
+    control_cambios(d)
+    guardar(d, "10_Politica_de_Compras_y_Adquisiciones")
+
+
+def politica_viaticos():
+    d = doc_base("Política de viáticos y gastos de viaje", "Lineamientos de solicitud, límites, comprobación y reembolso", "PO-FIN-02")
+    seccion(d, "1. Objetivo")
+    par(d, "Regular el otorgamiento, uso y comprobación de viáticos y gastos de viaje del personal de [NOMBRE DE LA EMPRESA], asegurando que sean razonables, "
+           "necesarios y deducibles.")
+    seccion(d, "2. Alcance")
+    par(d, "Aplica a todo colaborador que deba trasladarse por motivos de trabajo fuera de su lugar habitual de adscripción.")
+    seccion(d, "3. Límites autorizados por día")
+    t = tabla(d, ["Concepto", "Nivel operativo", "Nivel gerencial", "Nivel directivo"], 5, [5, 3.9, 3.9, 3.9])
+    for i, fila in enumerate([("Hospedaje (por noche)", "$[MONTO]", "$[MONTO]", "$[MONTO]"), ("Alimentos (por día)", "$[MONTO]", "$[MONTO]", "$[MONTO]"),
+                              ("Transporte local (por día)", "$[MONTO]", "$[MONTO]", "$[MONTO]"), ("Transporte aéreo / terrestre", "Clase turista", "Clase turista", "Según autorización"),
+                              ("Kilometraje (vehículo propio)", "$[MONTO]/km", "$[MONTO]/km", "$[MONTO]/km")], 1):
+        for j, v in enumerate(fila):
+            t.cell(i, j).text = ""
+            runs(t.cell(i, j).paragraphs[0], v)
+    d.add_paragraph()
+    seccion(d, "4. Políticas")
+    vinetas(d, ["Todo viaje debe contar con autorización previa del jefe inmediato mediante la solicitud de viáticos.",
+                "Se reservan boletos y hospedaje con al menos [7] días de anticipación para obtener mejores tarifas.",
+                "No son reembolsables multas, bebidas alcohólicas, gastos personales, propinas por encima del [10]% ni gastos de acompañantes.",
+                "Los gastos se comprueban con CFDI a nombre de la empresa dentro de los [5] días hábiles posteriores al regreso.",
+                "Los gastos sin factura se comprueban con nota firmada y no excederán el [10]% del total del viaje.",
+                "El anticipo no comprobado se descuenta vía nómina, previa autorización del colaborador.",
+                "Los saldos a favor del colaborador se reembolsan en la siguiente dispersión de pagos."])
+    seccion(d, "5. Procedimiento")
+    pasos_tabla(d, [("1", "El colaborador llena la solicitud de viáticos con destino, fechas, objetivo y presupuesto.", "Colaborador", "Solicitud de viáticos"),
+                    ("2", "El jefe inmediato autoriza y Finanzas entrega el anticipo.", "Jefe / Finanzas", "Solicitud firmada"),
+                    ("3", "El colaborador realiza el viaje y conserva todos los comprobantes.", "Colaborador", "Facturas / tickets"),
+                    ("4", "A su regreso llena el informe de gastos y adjunta los comprobantes.", "Colaborador", "Informe de gastos"),
+                    ("5", "Finanzas revisa, concilia el anticipo y registra la comprobación.", "Finanzas", "Póliza"),
+                    ("6", "Se reembolsa o descuenta la diferencia.", "Finanzas / Nómina", "Transferencia / recibo")])
+    seccion(d, "6. Formatos relacionados")
+    vinetas(d, ["Solicitud de viáticos.", "Informe de gastos de viaje.", "Control de ingresos y gastos (Excel)."])
+    control_cambios(d)
+    guardar(d, "11_Politica_de_Viaticos_y_Gastos_de_Viaje")
+
+
+def reglamento_asistencia():
+    d = doc_base("Política de asistencia y puntualidad", "Horarios, retardos, faltas, permisos y registro de asistencia", "PO-RH-03")
+    seccion(d, "1. Objetivo")
+    par(d, "Establecer las reglas de asistencia, puntualidad y permanencia de los colaboradores de [NOMBRE DE LA EMPRESA], para asegurar la continuidad de la operación "
+           "y la equidad en el trato al personal.")
+    seccion(d, "2. Alcance")
+    par(d, "Aplica a todo el personal, de base o eventual, en cualquiera de las áreas y turnos de la empresa.")
+    seccion(d, "3. Jornada y horarios")
+    t = tabla(d, ["Turno", "Horario de entrada", "Horario de salida", "Tiempo de alimentos"], 3, [4, 4, 4, 4])
+    for i, fila in enumerate([("Diurno", "[08:00]", "[17:00]", "[60 min]"), ("Mixto", "[11:00]", "[19:00]", "[45 min]"), ("Nocturno", "[20:00]", "[05:00]", "[60 min]")], 1):
+        for j, v in enumerate(fila):
+            t.cell(i, j).text = ""
+            runs(t.cell(i, j).paragraphs[0], v)
+    d.add_paragraph()
+    seccion(d, "4. Lineamientos")
+    vinetas(d, ["El registro de entrada y salida es personal e intransferible; registrar por otro compañero se considera falta grave.",
+                "Tolerancia: [10] minutos después de la hora de entrada. Entre [11] y [30] minutos se considera retardo; después de [30] minutos, falta, salvo autorización.",
+                "[Tres] retardos en un mismo mes equivalen a [una falta injustificada].",
+                "La falta injustificada implica el descuento del día y, en su caso, del séptimo día conforme a la Ley Federal del Trabajo.",
+                "Las ausencias se justifican con incapacidad del IMSS, permiso autorizado o evidencia de causa de fuerza mayor presentada en un máximo de [48] horas.",
+                "Más de [tres] faltas injustificadas en un periodo de [30] días pueden ser causa de rescisión de la relación laboral, conforme a la LFT (art. 47).",
+                "Los permisos se solicitan por escrito con al menos [un día] de anticipación, salvo emergencias."])
+    seccion(d, "5. Procedimiento")
+    pasos_tabla(d, [("1", "El colaborador registra su entrada y salida en el sistema o formato de asistencia.", "Colaborador", "Control de asistencia"),
+                    ("2", "El jefe inmediato valida el registro diario y señala retardos y faltas.", "Jefe inmediato", "Control de asistencia (Excel)"),
+                    ("3", "El colaborador entrega justificantes dentro del plazo.", "Colaborador", "Justificante"),
+                    ("4", "RH consolida el mes, aplica las reglas y envía incidencias a nómina.", "Recursos Humanos", "Reporte de incidencias"),
+                    ("5", "Nómina aplica descuentos y el colaborador recibe su recibo.", "Nómina", "Recibo de nómina")])
+    seccion(d, "6. Formatos relacionados")
+    vinetas(d, ["Control de asistencia mensual (Excel).", "Solicitud de vacaciones o permiso (Excel).", "Acta administrativa (Word)."])
+    control_cambios(d)
+    guardar(d, "12_Politica_de_Asistencia_y_Puntualidad")
+
+
+def procedimiento_inventarios():
+    d = doc_base("Procedimiento de control de inventarios", "Recepción, resguardo, salidas, conteos físicos y ajustes", "PR-ALM-01")
+    seccion(d, "1. Objetivo")
+    par(d, "Definir las actividades para recibir, almacenar, entregar y controlar los inventarios de [NOMBRE DE LA EMPRESA], asegurando que las existencias en sistema "
+           "coincidan con las físicas y que las diferencias se investiguen y corrijan.")
+    seccion(d, "2. Alcance")
+    par(d, "Aplica a almacenes, bodegas y áreas que resguarden materiales, productos terminados, refacciones o consumibles.")
+    seccion(d, "3. Políticas")
+    vinetas(d, ["Todo producto tiene código único (SKU), descripción, unidad de medida y ubicación asignada.",
+                "Ninguna entrada o salida se realiza sin documento de respaldo (orden de compra, remisión, requisición o nota de devolución).",
+                "El acceso al almacén está restringido al personal autorizado; los visitantes son acompañados.",
+                "Se define un stock mínimo y máximo por producto, revisado cada [trimestre].",
+                "Se realiza inventario físico general al menos [dos] veces al año y conteos cíclicos mensuales por clasificación ABC.",
+                "Las diferencias superiores a [2]% del valor se investigan antes de ajustarse; todo ajuste requiere autorización de Gerencia.",
+                "El método de valuación es costo promedio ponderado."])
+    seccion(d, "4. Procedimiento de recepción")
+    pasos_tabla(d, [("1", "Recibir al transportista y verificar documentos (factura, remisión) contra la orden de compra.", "Almacenista", "Orden de compra"),
+                    ("2", "Contar físicamente y revisar calidad, empaque y caducidad.", "Almacenista", "Reporte de recepción"),
+                    ("3", "Registrar la entrada en el sistema o kardex y ubicar el producto.", "Almacenista", "Kardex / Control de inventario"),
+                    ("4", "Enviar copia a Cuentas por pagar y reportar diferencias o daños.", "Almacenista", "Entrada de almacén")])
+    seccion(d, "5. Procedimiento de salidas")
+    pasos_tabla(d, [("1", "El área solicita material mediante requisición autorizada.", "Área solicitante", "Requisición"),
+                    ("2", "El almacenista verifica existencia, surte y recaba firma de quien recibe.", "Almacenista", "Vale de salida"),
+                    ("3", "Registra la salida y actualiza existencias.", "Almacenista", "Kardex / Control de inventario"),
+                    ("4", "Si la existencia llega al mínimo, genera aviso para reabasto.", "Almacenista / Compras", "Control de inventario")])
+    seccion(d, "6. Conteo físico y ajustes")
+    pasos_tabla(d, [("1", "Congelar movimientos del área a contar y definir equipos de conteo independientes.", "Contraloría", "Programa de conteo"),
+                    ("2", "Realizar el primer conteo y, de existir diferencias, un reconteo.", "Equipos de conteo", "Hoja de conteo"),
+                    ("3", "Comparar contra sistema, investigar causas y proponer ajustes.", "Contraloría", "Reporte de diferencias"),
+                    ("4", "Autorizar y registrar ajustes con póliza y justificación.", "Gerencia / Contabilidad", "Póliza de ajuste")])
+    seccion(d, "7. Formatos relacionados")
+    vinetas(d, ["Control de inventario (Excel).", "Kardex de costo promedio (Excel).", "Orden de compra (Excel)."])
+    control_cambios(d)
+    guardar(d, "13_Procedimiento_de_Control_de_Inventarios")
+
+
+def checklist_alta():
+    d = doc_base("Checklist de alta de nuevo colaborador", "Documentación, accesos, capacitación y seguimiento del primer mes", "FO-RH-04")
+    par(d, "Colaborador: [NOMBRE COMPLETO]    Puesto: [PUESTO]    Área: [ÁREA]    Fecha de ingreso: [FECHA]", align=WD_ALIGN_PARAGRAPH.LEFT)
+    bloques = [
+        ("A. Documentación (antes del primer día)", ["Solicitud de empleo y CV", "Acta de nacimiento", "CURP", "RFC con constancia de situación fiscal",
+                                                     "Número de seguridad social (NSS)", "Comprobante de domicilio (menor a 3 meses)", "Comprobante de estudios",
+                                                     "Identificación oficial (INE o pasaporte)", "Cuenta bancaria o CLABE para nómina", "Examen médico y referencias laborales"]),
+        ("B. Trámites de contratación", ["Contrato individual de trabajo firmado", "Alta en el IMSS (dentro de los 5 días hábiles)", "Aviso de retención de crédito Infonavit/Fonacot, si aplica",
+                                         "Carta de confidencialidad firmada", "Aviso de privacidad entregado y firmado", "Alta en nómina y esquema de pago"]),
+        ("C. Accesos y herramientas", ["Correo electrónico y accesos a sistemas", "Equipo de cómputo / herramientas asignadas con carta responsiva", "Gafete y control de acceso",
+                                       "Uniforme o equipo de protección (si aplica)", "Lugar de trabajo asignado"]),
+        ("D. Inducción y capacitación", ["Bienvenida y presentación del equipo", "Recorrido por las instalaciones", "Explicación del reglamento y políticas",
+                                         "Capacitación del puesto y objetivos de 30-60-90 días", "Capacitación de seguridad y protección civil"]),
+        ("E. Seguimiento", ["Revisión con jefe inmediato a los 7 días", "Revisión a los 30 días y confirmación de objetivos", "Evaluación de periodo de prueba, si aplica"]),
+    ]
+    for tit, items in bloques:
+        seccion(d, tit)
+        t = tabla(d, ["Requisito / actividad", "Responsable", "Fecha", "Listo (✔)"], len(items), [8, 3.3, 2.7, 2.4])
+        for i, it in enumerate(items, 1):
+            t.cell(i, 0).text = ""
+            runs(t.cell(i, 0).paragraphs[0], it)
+            for x in t.cell(i, 0).paragraphs[0].runs:
+                x.font.size = Pt(9.5)
+        d.add_paragraph()
+    firmas(d, ["Colaborador", "Jefe inmediato", "Recursos Humanos"])
+    d.add_paragraph()
+    aviso(d)
+    guardar(d, "14_Checklist_de_Alta_de_Colaborador")
+
+
 if __name__ == "__main__":
     for f in (contrato_servicios, carta_renuncia, constancia_laboral, carta_cobranza, acta_entrega,
-              acta_administrativa, contrato_confidencialidad, carta_poder):
+              acta_administrativa, contrato_confidencialidad, carta_poder,
+              manual_caja_chica, politica_compras, politica_viaticos, reglamento_asistencia,
+              procedimiento_inventarios, checklist_alta):
         f()
