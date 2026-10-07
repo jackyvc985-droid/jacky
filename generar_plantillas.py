@@ -54,6 +54,11 @@ def encabezado(ws, fila, textos, col=1):
 
 def campo(ws, fila, col, etiqueta, span=2, valor=None, fmt=None):
     """Etiqueta en col y celda de captura a la derecha (span columnas combinadas)."""
+    letra = L(col)
+    necesario = len(etiqueta) * 1.15 + 2
+    actual = ws.column_dimensions[letra].width or 8.43
+    if actual < necesario:
+        ws.column_dimensions[letra].width = necesario
     e = ws.cell(fila, col, etiqueta)
     e.font = Font(bold=True)
     e.fill = PatternFill("solid", fgColor=CLARO)
@@ -345,8 +350,8 @@ def conciliacion():
 def asistencia():
     wb, ws = libro("CONTROL DE ASISTENCIA MENSUAL", "A=Asistencia · F=Falta · R=Retardo · V=Vacaciones · I=Incapacidad · D=Descanso · P=Permiso",
                    [5, 28] + [4.2] * 31 + [7, 7, 7, 7, 7])
-    campo(ws, 4, 1, "Empresa", 5)
-    campo(ws, 4, 10, "Mes/Año", 6)
+    campo(ws, 4, 2, "Empresa", 8)
+    campo(ws, 5, 2, "Mes/Año", 8)
     encabezado(ws, 6, ["No.", "Empleado"] + [str(d) for d in range(1, 32)] + ["A", "F", "R", "V", "I"])
     f0, f1 = 7, 36
     filas(ws, f0, f1, 38, {}, {1: lambda r: r - 6,
@@ -359,6 +364,9 @@ def asistencia():
         for c in range(3, 34):
             ws.cell(r, c).alignment = Alignment(horizontal="center")
     lista(ws, f"C{f0}:AG{f1}", ["A", "F", "R", "V", "I", "D", "P"])
+    for r in range(f0, f1 + 1):
+        for c in range(34, 39):
+            ws.cell(r, c).number_format = "0;;"
     ws.freeze_panes = "C7"
     instrucciones(wb, "Control de asistencia", [
         "Escribe el mes y los nombres de tus empleados (hasta 30).",
@@ -613,8 +621,12 @@ def cotizacion_comparativa():
             ws.cell(r + off, pc + 1).fill = PatternFill("solid", fgColor=INPUT)
             ws.cell(r + off, pc + 1).border = BORDE
     ws.cell(r + 6, 2, "MEJOR OPCIÓN (menor total)").font = Font(bold=True, color=COLOR)
-    tots = ",".join(f"{L(pc+1)}{r+2}" for pc in (5, 7, 9, 11))
-    ws.cell(r + 6, 5, f'=IFERROR(INDEX({{"Proveedor A","Proveedor B","Proveedor C","Proveedor D"}},MATCH(MIN({tots}),CHOOSE({{1,2,3,4}},F{r+2},H{r+2},J{r+2},L{r+2}),0)),"")').font = Font(bold=True)
+    cols = [("F", "E"), ("H", "G"), ("J", "I"), ("L", "K")]
+    m = "MIN(" + ",".join(f"IF({c}{r+2}=0,1E+99,{c}{r+2})" for c, _ in cols) + ")"
+    f = '""'
+    for c, n in reversed(cols):
+        f = f"IF({c}{r+2}={m},{n}6,{f})"
+    ws.cell(r + 6, 5, f"=IF({m}=1E+99,\"\",{f})").font = Font(bold=True)
     ws.cell(r + 7, 2, "Nota: si un proveedor no cotiza todas las partidas, su total no es comparable.").font = Font(italic=True, color="7F7F7F")
     instrucciones(wb, "Cuadro comparativo", [
         "Renombra los proveedores en la fila 6.",
@@ -756,9 +768,102 @@ def solicitud_permiso():
     guardar(wb, "2_Recursos_Humanos", "05_Solicitud_de_Vacaciones_o_Permiso")
 
 
+def presupuesto():
+    meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+    wb, ws = libro("PRESUPUESTO ANUAL: PRESUPUESTADO VS REAL", "Captura presupuesto y gasto real por mes; la variación se calcula sola",
+                   [30] + [12] * 12 + [14, 14, 14, 11])
+    campo(ws, 4, 1, "Empresa / Área", 3)
+    campo(ws, 4, 6, "Año", 1, 2026)
+    encabezado(ws, 7, ["Concepto"] + meses + ["Presup. anual", "Real anual", "Variación", "% ejec."])
+    conceptos = ["Ventas", "Costo de ventas", "Sueldos y salarios", "Renta", "Servicios", "Publicidad y mercadotecnia",
+                 "Mantenimiento", "Papelería y oficina", "Impuestos y derechos", "Otros gastos"]
+    r = 8
+    for c in conceptos:
+        for tipo in ("Presup.", "Real"):
+            ws.cell(r, 1, f"{c} - {tipo}").border = BORDE
+            filas(ws, r, r, 12, {k: MXN for k in range(2, 14)}, col0=2)
+            r += 1
+    for i in range(len(conceptos)):
+        a, b = 8 + 2 * i, 9 + 2 * i
+        ws.cell(a, 14, f"=SUM(B{a}:M{a})").number_format = MXN
+        ws.cell(a, 15, f"=SUM(B{b}:M{b})").number_format = MXN
+        ws.cell(a, 16, f"=O{a}-N{a}").number_format = MXN
+        ws.cell(a, 17, f'=IF(N{a}=0,"",O{a}/N{a})').number_format = "0%"
+        for k in range(14, 18):
+            ws.cell(a, k).border = BORDE
+            ws.cell(a, k).fill = PatternFill("solid", fgColor="F2F2F2")
+        ws.cell(a, 1).font = Font(bold=True)
+    from openpyxl.formatting.rule import CellIsRule
+    ws.conditional_formatting.add(f"P8:P{r}", CellIsRule(operator="greaterThan", formula=["0"], font=Font(color="C00000", bold=True)))
+    ws.freeze_panes = "B8"
+    instrucciones(wb, "Presupuesto anual", [
+        "Por cada concepto hay dos renglones: Presup. (lo planeado) y Real (lo ejercido).",
+        "Captura mes a mes. La columna Variación muestra Real - Presupuesto del primer renglón de cada concepto.",
+        "En gastos, una variación positiva (rojo) significa que te pasaste del presupuesto; en ventas, positiva es favorable.",
+        "El % de ejecución indica qué parte del presupuesto anual ya se ejerció."])
+    guardar(wb, "1_Contabilidad_y_Finanzas", "06_Presupuesto_Anual")
+
+
+def activos_fijos():
+    wb, ws = libro("CONTROL DE ACTIVOS FIJOS Y DEPRECIACIÓN", "Depreciación en línea recta con tasas máximas de la LISR como referencia",
+                   [6, 12, 30, 18, 13, 15, 10, 14, 12, 15, 15, 16])
+    campo(ws, 4, 1, "Empresa", 3)
+    campo(ws, 4, 6, "Fecha de corte", 2, "=TODAY()", FECHA)
+    encabezado(ws, 6, ["No.", "Código", "Descripción", "Categoría", "Fecha adquisición", "Costo (MOI)", "Tasa anual",
+                       "Dep. anual", "Años en uso", "Dep. acumulada", "Valor en libros", "Ubicación / Responsable"])
+    f0, f1 = 7, 56
+    filas(ws, f0, f1, 12, {5: FECHA, 6: MXN, 7: "0%", 8: MXN, 9: "0.00", 10: MXN, 11: MXN}, {
+        1: lambda r: r - 6,
+        7: lambda r: (f'=IF(D{r}="","",IFERROR(VLOOKUP(D{r},Tasas!$A$2:$B$10,2,FALSE),0))'),
+        8: lambda r: f'=IF(F{r}="","",F{r}*G{r})',
+        9: lambda r: f'=IF(E{r}="","",MAX(0,($G$4-E{r})/365))',
+        10: lambda r: f'=IF(F{r}="","",MIN(F{r},H{r}*I{r}))',
+        11: lambda r: f'=IF(F{r}="","",F{r}-J{r})'})
+    t = wb.create_sheet("Tasas")
+    t.append(["Categoría", "Tasa anual (ref.)"])
+    for c, v in [("Mobiliario y equipo de oficina", 0.10), ("Equipo de cómputo", 0.30), ("Automóviles", 0.25),
+                 ("Maquinaria y equipo", 0.10), ("Equipo de comunicación", 0.10), ("Edificios", 0.05),
+                 ("Herramientas", 0.35), ("Otros", 0.10)]:
+        t.append([c, v])
+    for c in t[1]:
+        c.font = Font(bold=True)
+    for r_ in range(2, 10):
+        t.cell(r_, 2).number_format = "0%"
+    t.column_dimensions["A"].width = 34
+    t.column_dimensions["B"].width = 18
+    lista(ws, f"D{f0}:D{f1}", ["Mobiliario y equipo de oficina", "Equipo de cómputo", "Automóviles", "Maquinaria y equipo",
+                               "Equipo de comunicación", "Edificios", "Herramientas", "Otros"])
+    total(ws, f1 + 1, 5, {6: f"=SUM(F{f0}:F{f1})", 8: f"=SUM(H{f0}:H{f1})", 10: f"=SUM(J{f0}:J{f1})", 11: f"=SUM(K{f0}:K{f1})"})
+    ws.freeze_panes = "A7"
+    instrucciones(wb, "Activos fijos", [
+        "Registra cada activo con fecha de adquisición, costo (sin IVA) y categoría.",
+        "La tasa se toma de la hoja 'Tasas' (referencia de porcentajes máximos de la LISR); edítala según tu criterio contable.",
+        "Depreciación acumulada = depreciación anual x años en uso, sin exceder el costo.",
+        "Es una herramienta de control administrativo; consulta a tu contador para efectos fiscales."])
+    guardar(wb, "1_Contabilidad_y_Finanzas", "07_Control_de_Activos_Fijos")
+
+
+def directorio():
+    wb, ws = libro("DIRECTORIO DE CLIENTES Y PROVEEDORES", "Base de contactos con datos fiscales y condiciones comerciales",
+                   [6, 12, 32, 16, 24, 16, 28, 14, 16, 26])
+    campo(ws, 4, 1, "Empresa", 3)
+    encabezado(ws, 6, ["No.", "Tipo", "Razón social / Nombre", "RFC", "Contacto", "Teléfono", "Correo",
+                       "Días crédito", "Límite crédito", "Dirección / Notas"])
+    f0, f1 = 7, 106
+    filas(ws, f0, f1, 10, {8: "0", 9: MXN}, {1: lambda r: r - 6})
+    lista(ws, f"B{f0}:B{f1}", ["Cliente", "Proveedor", "Ambos"])
+    ws.auto_filter.ref = f"A6:J{f1}"
+    ws.freeze_panes = "D7"
+    instrucciones(wb, "Directorio", [
+        "Captura un renglón por cliente o proveedor y elige el tipo en la lista.",
+        "Usa los filtros del encabezado para ver solo clientes, proveedores o buscar por nombre.",
+        "Protege este archivo: contiene datos personales (Ley Federal de Protección de Datos Personales)."])
+    guardar(wb, "1_Contabilidad_y_Finanzas", "08_Directorio_Clientes_y_Proveedores")
+
+
 if __name__ == "__main__":
     for f in (ingresos_gastos, caja_chica, flujo_efectivo, cuentas_por_cobrar, conciliacion,
               asistencia, nomina, vacaciones, evaluacion, solicitud_permiso,
               inventario, kardex, orden_compra, cotizacion_comparativa,
-              cotizacion, recibo, minuta):
+              cotizacion, recibo, minuta, presupuesto, activos_fijos, directorio):
         f()
