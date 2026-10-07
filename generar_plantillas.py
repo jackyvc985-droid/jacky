@@ -16,7 +16,8 @@ def Font(**kw):
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plantillas")
 COLOR = "0B2A4A"    # azul marino (principal)
-PETROL = "1B6B73"   # verde petróleo (secundario)
+PETROL = "0E7C8B"   # azul turquesa (secundario)
+CORAL = "E8604C"    # coral (alertas y semáforo rojo)
 GOLD = "C9A227"     # dorado sobrio (acento)
 CLARO = "E6ECF1"
 INPUT = "FFFCF0"
@@ -163,10 +164,12 @@ def total(ws, fila, col_etq, cols_formula, formato=MXN, etiqueta="TOTAL"):
         x.fill = PatternFill("solid", fgColor=CLARO)
 
 
-def lista(ws, rango, opciones):
-    """opciones: lista de textos o una fórmula/rango que empiece con '='."""
+def lista(ws, rango, opciones, aviso=False):
+    """opciones: lista de textos o una fórmula/rango que empiece con '='. aviso=True permite otros valores (advertencia)."""
     f1 = opciones if isinstance(opciones, str) else '"' + ",".join(opciones) + '"'
     dv = DataValidation(type="list", formula1=f1, allow_blank=True)
+    if aviso:
+        dv.errorStyle = "warning"
     ws.add_data_validation(dv)
     dv.add(rango)
 
@@ -267,6 +270,13 @@ DESCRIPCION_HOJAS = {
     "TASAS": "Tabla de tasas de depreciación de referencia; edítala según tu criterio contable.",
     "TABLA LFT": "Días de vacaciones por antigüedad conforme a la Ley Federal del Trabajo.",
     "AYUDA": "Preguntas frecuentes, glosario y lista de verificación para cerrar tu periodo.",
+    "TABLERO": "Tablero ejecutivo: semáforo general, indicadores clave, gráficas y texto automático para el reporte semanal.",
+    "ACTIVIDADES": "Registro semanal de actividades con responsable, fecha compromiso, avance y semáforo automático.",
+    "PROYECTOS": "Seguimiento de proyectos: avance planeado vs. real, presupuesto ejercido y semáforo.",
+    "PENDIENTES": "Lista de pendientes con origen, responsable, antigüedad y semáforo.",
+    "RIESGOS": "Registro de riesgos con probabilidad, impacto, clasificación automática y matriz de calor.",
+    "DECISIONES": "Decisiones que requiere la dirección: contexto, opciones, recomendación y fecha requerida.",
+    "INDICADORES": "Indicadores con meta y 12 semanas de historia; cumplimiento y semáforo automáticos.",
 }
 
 
@@ -469,8 +479,8 @@ from openpyxl.chart import BarChart, LineChart, PieChart, Reference
 from openpyxl.chart.label import DataLabelList
 
 
-def hoja_resumen(wb, titulo, subtitulo):
-    ws = wb.create_sheet("RESUMEN")
+def hoja_resumen(wb, titulo, subtitulo, nombre="RESUMEN"):
+    ws = wb.create_sheet(nombre)
     banner(ws, titulo, subtitulo, [2] + [15] * 8 + [2])
     ws.sheet_properties.tabColor = GOLD
     ws.page_setup.fitToHeight = 1
@@ -1108,7 +1118,7 @@ def inventario():
     pie.dataLabels.showVal = False
     pie.dataLabels.showLeaderLines = False
     from openpyxl.chart.series import DataPoint
-    for i, col_ in enumerate((PETROL, GOLD, "B5483A")):
+    for i, col_ in enumerate((PETROL, GOLD, CORAL)):
         pt = DataPoint(idx=i)
         pt.graphicalProperties.solidFill = col_
         pie.series[0].dPt.append(pt)
@@ -1558,9 +1568,241 @@ def directorio():
     guardar(wb, "1_Contabilidad_y_Finanzas", "08_Directorio_Clientes_y_Proveedores")
 
 
+# ------------------------------------------------------------ CONTROL OPERATIVO SEMANAL
+OP = {"ACT": (5, 204), "PRO": (5, 44), "PEN": (5, 154), "RIE": (5, 64), "DEC": (5, 64), "IND": (5, 24)}
+
+
+def semaforo_cf(ws, rango):
+    from openpyxl.formatting.rule import CellIsRule
+    grupos = ((("CUMPLIDO", "EN TIEMPO", "VERDE", "BAJO", "EN META", "APROBADA"), "C6EFCE", "006100"),
+              (("POR VENCER", "ÁMBAR", "MEDIO", "EN RIESGO", "APLAZADA"), "FFEB9C", "7F5F00"),
+              (("VENCIDO", "ROJO", "ALTO", "FUERA DE META", "BLOQUEADO"), "FFD6D0", "B3261E"))
+    for textos, fondo, letra in grupos:
+        for t in textos:
+            ws.conditional_formatting.add(rango, CellIsRule(operator="equal", formula=[f'"{t}"'],
+                                                            fill=PatternFill("solid", bgColor=fondo, fgColor=fondo),
+                                                            font=_Font(name=FUENTE, bold=True, color=letra)))
+
+
+def hoja_tabla(wb, nombre, titulo, subtitulo, encabezados, anchos, desde, hasta, formatos=None, formulas=None, nueva=True):
+    ws = wb.create_sheet(nombre) if nueva else wb[nombre]
+    if nueva:
+        banner(ws, titulo, subtitulo, anchos)
+    ws.sheet_properties.tabColor = PETROL
+    encabezado(ws, desde - 1, encabezados)
+    filas(ws, desde, hasta, len(encabezados), formatos or {}, formulas or {})
+    ws.freeze_panes = f"A{desde}"
+    ws.auto_filter.ref = f"A{desde - 1}:{L(len(encabezados))}{hasta}"
+    return ws
+
+
+def control_operativo():
+    from openpyxl.workbook.defined_name import DefinedName
+    from openpyxl.formatting.rule import CellIsRule
+    wb, ws0 = libro("ACTIVIDADES DE LA SEMANA", "Registro semanal de actividades con semáforo automático",
+                    [6, 13, 56, 32, 22, 12, 14, 14, 15, 10, 10, 15, 34], hoja="ACTIVIDADES")
+    refs = catalogo(wb, {"RESPONSABLES": ["ADMINISTRACIÓN", "COMPRAS", "FINANZAS", "RECURSOS HUMANOS", "OPERACIONES", "PROYECTOS", "VENTAS", "DIRECCIÓN"],
+                         "ESTATUS": ["PENDIENTE", "EN PROCESO", "TERMINADO", "BLOQUEADO"],
+                         "PRIORIDAD": ["ALTA", "MEDIA", "BAJA"],
+                         "ESTATUS DE DECISIÓN": ["PENDIENTE", "APROBADA", "RECHAZADA", "APLAZADA"],
+                         "ESCALA 1 A 5": ["1", "2", "3", "4", "5"],
+                         "SENTIDO DEL INDICADOR": ["MAYOR ES MEJOR", "MENOR ES MEJOR"]})
+    corte = "FECHA_CORTE"
+    # ------------------------------------------------ ACTIVIDADES
+    a0, a1 = OP["ACT"]
+    hoja_tabla(wb, "ACTIVIDADES", "", "", ["No.", "Semana (lunes)", "Actividad", "Proyecto / área", "Responsable", "Prioridad", "Fecha compromiso",
+                                          "Fecha real", "Estatus", "Avance", "Días de atraso", "Semáforo", "Evidencia / entregable"],
+               [6, 13, 56, 32, 22, 12, 14, 14, 15, 10, 10, 15, 34], a0, a1,
+               {2: FECHA, 7: FECHA, 8: FECHA, 10: "0%", 11: "0"},
+               {1: lambda r: r - a0 + 1,
+                11: lambda r: f'=IF(OR(C{r}="",G{r}="",I{r}="TERMINADO"),"",MAX(0,{corte}-G{r}))',
+                12: lambda r: (f'=IF(C{r}="","",IF(I{r}="TERMINADO","CUMPLIDO",IF(G{r}="","SIN FECHA",IF(G{r}<{corte},"VENCIDO",'
+                               f'IF(G{r}-{corte}<=2,"POR VENCER","EN TIEMPO")))))')}, nueva=False)
+    lista(wb["ACTIVIDADES"], f"E{a0}:E{a1}", refs["RESPONSABLES"], aviso=True)
+    lista(wb["ACTIVIDADES"], f"F{a0}:F{a1}", refs["PRIORIDAD"])
+    lista(wb["ACTIVIDADES"], f"I{a0}:I{a1}", refs["ESTATUS"])
+    semaforo_cf(wb["ACTIVIDADES"], f"L{a0}:L{a1}")
+    # ------------------------------------------------ PROYECTOS
+    p0, p1 = OP["PRO"]
+    w = hoja_tabla(wb, "PROYECTOS", "SEGUIMIENTO DE PROYECTOS", "Avance planeado vs. real y presupuesto ejercido",
+                   ["No.", "Proyecto", "Cliente / área", "Responsable", "Inicio", "Fin planeado", "Avance planeado", "Avance real",
+                    "Presupuesto", "Gasto real", "% presupuesto ejercido", "Desviación de avance", "Semáforo", "Estatus", "Comentarios"],
+                   [6, 42, 28, 22, 13, 13, 12, 12, 16, 16, 13, 13, 13, 14, 34], p0, p1,
+                   {5: FECHA, 6: FECHA, 7: "0%", 8: "0%", 9: MXN, 10: MXN, 11: "0%", 12: "0%"},
+                   {1: lambda r: r - p0 + 1,
+                    7: lambda r: f'=IF(OR(E{r}="",F{r}=""),"",MAX(0,MIN(1,({corte}-E{r})/MAX(1,F{r}-E{r}))))',
+                    11: lambda r: f'=IF(OR(I{r}="",J{r}="",I{r}=0),"",J{r}/I{r})',
+                    12: lambda r: f'=IF(OR(G{r}="",H{r}=""),"",H{r}-G{r})',
+                    13: lambda r: (f'=IF(B{r}="","",IF(N{r}="TERMINADO","VERDE",IF(L{r}="","",IF(OR(L{r}<-0.15,AND(K{r}<>"",K{r}>1.05)),"ROJO",'
+                                   f'IF(OR(L{r}<-0.05,AND(K{r}<>"",K{r}>1)),"ÁMBAR","VERDE")))))')})
+    lista(w, f"D{p0}:D{p1}", refs["RESPONSABLES"], aviso=True)
+    lista(w, f"N{p0}:N{p1}", ["EN PROCESO", "PAUSADO", "TERMINADO", "CANCELADO"])
+    semaforo_cf(w, f"M{p0}:M{p1}")
+    # ------------------------------------------------ PENDIENTES
+    e0, e1 = OP["PEN"]
+    w = hoja_tabla(wb, "PENDIENTES", "PENDIENTES ABIERTOS", "Lo que no se cierra, se acumula: responsable, fecha y semáforo",
+                   ["No.", "Pendiente", "Origen (cliente, junta, dirección)", "Responsable", "Prioridad", "Fecha solicitud", "Fecha compromiso",
+                    "Estatus", "Días abiertos", "Semáforo", "Comentarios"],
+                   [6, 56, 30, 22, 12, 14, 14, 15, 11, 15, 36], e0, e1, {6: FECHA, 7: FECHA, 9: "0"},
+                   {1: lambda r: r - e0 + 1,
+                    9: lambda r: f'=IF(OR(B{r}="",F{r}=""),"",MAX(0,{corte}-F{r}))',
+                    10: lambda r: (f'=IF(B{r}="","",IF(H{r}="TERMINADO","CUMPLIDO",IF(G{r}="","SIN FECHA",IF(G{r}<{corte},"VENCIDO",'
+                                   f'IF(G{r}-{corte}<=2,"POR VENCER","EN TIEMPO")))))')})
+    lista(w, f"D{e0}:D{e1}", refs["RESPONSABLES"], aviso=True)
+    lista(w, f"E{e0}:E{e1}", refs["PRIORIDAD"])
+    lista(w, f"H{e0}:H{e1}", refs["ESTATUS"])
+    semaforo_cf(w, f"J{e0}:J{e1}")
+    # ------------------------------------------------ RIESGOS
+    r0, r1 = OP["RIE"]
+    w = hoja_tabla(wb, "RIESGOS", "REGISTRO DE RIESGOS", "Probabilidad x impacto con clasificación automática y matriz de calor",
+                   ["No.", "Riesgo", "Proyecto / área", "Probabilidad (1-5)", "Impacto (1-5)", "Nivel (P x I)", "Clasificación", "Responsable",
+                    "Acción de mitigación", "Fecha límite", "Estatus"],
+                   [6, 54, 28, 12, 12, 10, 14, 22, 62, 14, 16], r0, r1, {10: FECHA, 6: "0"},
+                   {1: lambda r: r - r0 + 1,
+                    6: lambda r: f'=IF(OR(D{r}="",E{r}=""),"",D{r}*E{r})',
+                    7: lambda r: f'=IF(F{r}="","",IF(F{r}>=15,"ALTO",IF(F{r}>=8,"MEDIO","BAJO")))'})
+    lista(w, f"D{r0}:E{r1}", refs["ESCALA 1 A 5"])
+    lista(w, f"H{r0}:H{r1}", refs["RESPONSABLES"], aviso=True)
+    lista(w, f"K{r0}:K{r1}", ["ABIERTO", "EN MITIGACIÓN", "CERRADO", "MATERIALIZADO"])
+    semaforo_cf(w, f"G{r0}:G{r1}")
+    for k in range(1, 7):
+        w.column_dimensions[L(12 + k)].width = 9
+    w.column_dimensions["L"].width = 3
+    w.cell(3, 13, "MATRIZ DE RIESGOS (CANTIDAD)").font = Font(bold=True, color=PETROL)
+    w.cell(4, 13, "PROB. \\ IMPACTO").font = Font(bold=True, size=8, color=COLOR)
+    for imp in range(1, 6):
+        c = w.cell(4, 13 + imp, imp)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor=COLOR)
+        c.alignment = Alignment(horizontal="center")
+    for k, prob in enumerate(range(5, 0, -1)):
+        h = w.cell(5 + k, 13, prob)
+        h.font = Font(bold=True, color="FFFFFF")
+        h.fill = PatternFill("solid", fgColor=COLOR)
+        h.alignment = Alignment(horizontal="center")
+        for imp in range(1, 6):
+            nivel = prob * imp
+            color = "FFD6D0" if nivel >= 15 else ("FFEB9C" if nivel >= 8 else "C6EFCE")
+            c = w.cell(5 + k, 13 + imp, f'=COUNTIFS($D${r0}:$D${r1},{prob},$E${r0}:$E${r1},{imp})')
+            c.fill = PatternFill("solid", fgColor=color)
+            c.border = BORDE
+            c.alignment = Alignment(horizontal="center", vertical="center")
+            c.font = Font(bold=True, size=12, color=COLOR)
+            w.row_dimensions[5 + k].height = 24
+    # ------------------------------------------------ DECISIONES
+    d0, d1 = OP["DEC"]
+    w = hoja_tabla(wb, "DECISIONES", "DECISIONES REQUERIDAS A DIRECCIÓN", "Contexto, opciones y recomendación para decidir rápido",
+                   ["No.", "Decisión requerida", "Contexto", "Opciones", "Recomendación", "Quién decide", "Fecha requerida", "Estatus",
+                    "Fecha de decisión", "Días de retraso", "Semáforo"],
+                   [6, 46, 46, 46, 38, 20, 14, 14, 14, 11, 15], d0, d1, {7: FECHA, 9: FECHA, 10: "0"},
+                   {1: lambda r: r - d0 + 1,
+                    10: lambda r: f'=IF(OR(B{r}="",G{r}="",H{r}<>"PENDIENTE"),"",MAX(0,{corte}-G{r}))',
+                    11: lambda r: (f'=IF(B{r}="","",IF(H{r}<>"PENDIENTE","CUMPLIDO",IF(G{r}="","SIN FECHA",IF(G{r}<{corte},"VENCIDO",'
+                                   f'IF(G{r}-{corte}<=2,"POR VENCER","EN TIEMPO")))))')})
+    lista(w, f"H{d0}:H{d1}", refs["ESTATUS DE DECISIÓN"])
+    semaforo_cf(w, f"K{d0}:K{d1}")
+    for r in range(d0, d1 + 1):
+        for c in (3, 4, 5):
+            w.cell(r, c).alignment = Alignment(wrap_text=True, vertical="top")
+    # ------------------------------------------------ INDICADORES
+    i0, i1 = OP["IND"]
+    semanas = [f"S{k}" for k in range(1, 13)]
+    w = hoja_tabla(wb, "INDICADORES", "INDICADORES OPERATIVOS", "Meta, 12 semanas de historia, cumplimiento y semáforo",
+                   ["No.", "Indicador", "Unidad", "Sentido", "Meta"] + semanas + ["Último valor", "Cumplimiento", "Semáforo"],
+                   [6, 48, 10, 18, 12] + [9] * 12 + [12, 13, 15], i0, i1, {5: "#,##0.##", **{c: "#,##0.##" for c in range(6, 18)}, 18: "#,##0.##", 19: "0%"},
+                   {1: lambda r: r - i0 + 1,
+                    18: lambda r: f'=IFERROR(LOOKUP(2,1/(F{r}:Q{r}<>""),F{r}:Q{r}),"")',
+                    19: lambda r: (f'=IF(OR(E{r}="",R{r}=""),"",IF(D{r}="MENOR ES MEJOR",IF(R{r}=0,1,E{r}/R{r}),IF(E{r}=0,"",R{r}/E{r})))'),
+                    20: lambda r: f'=IF(S{r}="","",IF(S{r}>=1,"EN META",IF(S{r}>=0.9,"EN RIESGO","FUERA DE META")))'})
+    lista(w, f"D{i0}:D{i1}", refs["SENTIDO DEL INDICADOR"])
+    semaforo_cf(w, f"T{i0}:T{i1}")
+    # ------------------------------------------------ TABLERO
+    t = hoja_resumen(wb, "TABLERO EJECUTIVO SEMANAL", "Lectura rápida para dirección: avances, pendientes, riesgos y decisiones", nombre="TABLERO")
+    A = lambda col: f"ACTIVIDADES!${col}${a0}:${col}${a1}"
+    P = lambda col: f"PROYECTOS!${col}${p0}:${col}${p1}"
+    E = lambda col: f"PENDIENTES!${col}${e0}:${col}${e1}"
+    R = lambda col: f"RIESGOS!${col}${r0}:${col}${r1}"
+    D = lambda col: f"DECISIONES!${col}${d0}:${col}${d1}"
+    kpi(t, 2, "ACTIVIDADES CUMPLIDAS", f'=IFERROR(COUNTIF({A("I")},"TERMINADO")/COUNTA({A("C")}),0)', "0%")
+    kpi(t, 4, "ACTIVIDADES VENCIDAS", f'=COUNTIF({A("L")},"VENCIDO")', "0")
+    kpi(t, 6, "PENDIENTES ABIERTOS", f'=COUNTIFS({E("H")},"<>TERMINADO",{E("B")},"<>")', "0")
+    kpi(t, 8, "RIESGOS ALTOS", f'=COUNTIF({R("G")},"ALTO")', "0")
+    kpi(t, 2, "DECISIONES PENDIENTES", f'=COUNTIFS({D("H")},"PENDIENTE",{D("B")},"<>")', "0", fila=7)
+    kpi(t, 4, "PROYECTOS EN ROJO", f'=COUNTIF({P("M")},"ROJO")', "0", fila=7)
+    kpi(t, 6, "SEMÁFORO GENERAL",
+        '=IF(OR(D5>5,H5>2,D8>0),"ROJO",IF(OR(D5>0,H5>0,B8>0,F5>5),"ÁMBAR","VERDE"))', "@", fila=7)
+    kpi(t, 8, "FECHA DE CORTE", "=TODAY()", FECHA, fila=7)
+    for c_ in (8, 9):
+        t.cell(8, c_).fill = PatternFill("solid", fgColor=INPUT)
+    wb.defined_names["FECHA_CORTE"] = DefinedName("FECHA_CORTE", attr_text="TABLERO!$H$8")
+    semaforo_cf(t, "F8")
+    t.merge_cells("B10:I10")
+    t["B10"] = ('="SEMANA AL "&TEXT(H8,"DD/MM/YYYY")&": "&TEXT(B5,"0%")&" DE LAS ACTIVIDADES CUMPLIDAS, "&D5&" VENCIDAS, "&F5&" PENDIENTES ABIERTOS, "'
+                '&H5&" RIESGOS ALTOS, "&B8&" DECISIONES POR TOMAR Y "&D8&" PROYECTOS EN ROJO. SEMÁFORO GENERAL: "&F8&"."')
+    t["B10"].alignment = Alignment(wrap_text=True, vertical="center")
+    t["B10"].font = Font(size=10, italic=True, color=COLOR)
+    t.row_dimensions[10].height = 34
+    t0 = 46
+    tabla_simple(t, t0, 2, ["Estatus de actividades", "Actividades"], [[x, f'=COUNTIF({A("I")},B{t0 + 1 + i})'] for i, x in
+                                                                        enumerate(["PENDIENTE", "EN PROCESO", "TERMINADO", "BLOQUEADO"])], {1: "0"})
+    tabla_simple(t, t0, 5, ["Clasificación de riesgos", "Riesgos"], [[x, f'=COUNTIF({R("G")},E{t0 + 1 + i})'] for i, x in
+                                                                     enumerate(["ALTO", "MEDIO", "BAJO"])], {1: "0"})
+    n_resp = 8
+    tabla_simple(t, t0 + 7, 2, ["Responsable", "Asignadas", "Terminadas"],
+                 [[f"=IF('CATÁLOGOS'!B{5 + i}=\"\",\"\",'CATÁLOGOS'!B{5 + i})", f'=IF(B{t0 + 8 + i}="",0,COUNTIF({A("E")},B{t0 + 8 + i}))',
+                   f'=IF(B{t0 + 8 + i}="",0,COUNTIFS({A("E")},B{t0 + 8 + i},{A("I")},"TERMINADO"))'] for i in range(n_resp)], {1: "0", 2: "0"})
+    tabla_simple(t, t0 + 7, 6, ["Proyecto", "Avance planeado", "Avance real"],
+                 [[f'=IF(PROYECTOS!B{p0 + i}="","",LEFT(PROYECTOS!B{p0 + i},26))', f'=IF(PROYECTOS!G{p0 + i}="",0,PROYECTOS!G{p0 + i})',
+                   f'=IF(PROYECTOS!H{p0 + i}="",0,PROYECTOS!H{p0 + i})'] for i in range(n_resp)], {1: "0%", 2: "0%"})
+    t.column_dimensions["F"].width = 28
+    pie = PieChart()
+    pie.title = "Actividades por estatus"
+    pie.width, pie.height = 11.5, 7.5
+    pie.add_data(Reference(t, min_col=3, min_row=t0, max_row=t0 + 4), titles_from_data=True)
+    pie.set_categories(Reference(t, min_col=2, min_row=t0 + 1, max_row=t0 + 4))
+    pie.dataLabels = DataLabelList()
+    pie.dataLabels.showPercent = True
+    pie.dataLabels.showCatName = pie.dataLabels.showSerName = pie.dataLabels.showVal = False
+    from openpyxl.chart.series import DataPoint
+    for i_, col_ in enumerate(("8A97A3", PETROL, "63BE7B", CORAL)):
+        pt = DataPoint(idx=i_)
+        pt.graphicalProperties.solidFill = col_
+        pie.series[0].dPt.append(pt)
+    t.add_chart(pie, "B12")
+    g2 = grafica_barras("Riesgos por clasificación", ancho=11.5, alto=7.5)
+    g2.add_data(Reference(t, min_col=6, min_row=t0, max_row=t0 + 3), titles_from_data=True)
+    g2.set_categories(Reference(t, min_col=5, min_row=t0 + 1, max_row=t0 + 3))
+    g2.legend = None
+    g2.y_axis.numFmt = "0"
+    g2.series[0].graphicalProperties.solidFill = COLOR
+    t.add_chart(g2, "F12")
+    g3 = grafica_barras("Actividades por responsable", horizontal=True, ancho=11.5, alto=8.5)
+    g3.add_data(Reference(t, min_col=3, max_col=4, min_row=t0 + 7, max_row=t0 + 7 + n_resp), titles_from_data=True)
+    g3.set_categories(Reference(t, min_col=2, min_row=t0 + 8, max_row=t0 + 7 + n_resp))
+    g3.y_axis.numFmt = "0"
+    colorear(g3, (COLOR, PETROL))
+    t.add_chart(g3, "B28")
+    g4 = grafica_barras("Proyectos: avance planeado vs. real", horizontal=True, ancho=11.5, alto=8.5)
+    g4.add_data(Reference(t, min_col=7, max_col=8, min_row=t0 + 7, max_row=t0 + 7 + n_resp), titles_from_data=True)
+    g4.set_categories(Reference(t, min_col=6, min_row=t0 + 8, max_row=t0 + 7 + n_resp))
+    g4.y_axis.numFmt = "0%"
+    g4.y_axis.scaling.min, g4.y_axis.scaling.max = 0, 1
+    colorear(g4, (GOLD, COLOR))
+    t.add_chart(g4, "F28")
+    wb.move_sheet("TABLERO", offset=-(len(wb.sheetnames) - 1))
+    wb.move_sheet("CATÁLOGOS", offset=len(wb.sheetnames))
+    instrucciones(wb, "Control operativo semanal", [
+        "Define tus responsables, estatus y prioridades en la hoja CATÁLOGOS (todo el libro usa esas listas).",
+        "Captura cada semana tus ACTIVIDADES, PROYECTOS, PENDIENTES, RIESGOS, DECISIONES e INDICADORES; los semáforos se calculan solos.",
+        "La FECHA DE CORTE del TABLERO se actualiza con HOY; puedes escribir una fecha fija para cerrar una semana.",
+        "Lee el TABLERO: semáforo general, indicadores clave y gráficas. El texto de la celda B10 sirve de resumen para tu reporte semanal.",
+        "Envía a dirección el reporte semanal (formato Word incluido en el paquete) con los pendientes, riesgos y decisiones en rojo o ámbar."])
+    guardar(wb, "7_Control_Directivo", "01_Control_Operativo_Semanal")
+
+
 if __name__ == "__main__":
     for f in (ingresos_gastos, caja_chica, flujo_efectivo, cuentas_por_cobrar, conciliacion,
               asistencia, nomina, vacaciones, evaluacion, solicitud_permiso,
               inventario, kardex, orden_compra, cotizacion_comparativa,
-              cotizacion, recibo, minuta, presupuesto, activos_fijos, directorio):
+              cotizacion, recibo, minuta, presupuesto, activos_fijos, directorio, control_operativo):
         f()

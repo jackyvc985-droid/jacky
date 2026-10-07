@@ -5,7 +5,7 @@ import datetime as dt
 import os
 import shutil
 from openpyxl import load_workbook
-from generar_plantillas import CAJA_F1, INPUT
+from generar_plantillas import CAJA_F1, INPUT, OP
 
 RAIZ = os.path.dirname(os.path.abspath(__file__))
 PLANT = os.path.join(RAIZ, "plantillas")
@@ -310,8 +310,76 @@ def kardex(ws):
         (D(2026, 9, 24), "REM-0351", "Venta mostrador", None, None, 24)])
 
 
+def control_operativo(wb):
+    wb["TABLERO"]["H8"] = D(2026, 10, 7)
+    a = wb["ACTIVIDADES"]
+    lun = D(2026, 10, 5)
+    reg(a, OP["ACT"][0], [2, 3, 4, 5, 6, 7, 8, 9, 10, 13], [
+        (lun, "Conciliar facturas de proveedores de septiembre", "Administración", "Finanzas", "Alta", D(2026, 10, 6), D(2026, 10, 6), "Terminado", 1, "Reporte de conciliación"),
+        (lun, "Integrar expediente de compras de la Nave Toluca", "Nave Toluca fase 2", "Compras", "Alta", D(2026, 10, 7), None, "En proceso", 0.7, "Expediente digital"),
+        (lun, "Presentar propuesta de cierre a Constructora Altamira", "Remodelación oficinas", "Proyectos", "Alta", D(2026, 10, 9), None, "En proceso", 0.5, "Presentación"),
+        (lun, "Calcular nómina de la segunda quincena de septiembre", "Nómina", "Recursos humanos", "Alta", D(2026, 10, 1), D(2026, 10, 1), "Terminado", 1, "Layout de dispersión"),
+        (lun, "Presentar declaración mensual de IVA", "Cumplimiento fiscal", "Finanzas", "Alta", D(2026, 10, 5), D(2026, 10, 5), "Terminado", 1, "Acuse SAT"),
+        (lun, "Enviar facturas pendientes de timbrar", "Facturación", "Administración", "Media", D(2026, 10, 2), None, "Pendiente", 0, ""),
+        (lun, "Dar seguimiento a cobranza mayor a 60 días", "Cobranza", "Finanzas", "Alta", D(2026, 10, 6), None, "En proceso", 0.4, "Bitácora de llamadas"),
+        (lun, "Validar altas y bajas de IMSS del mes", "Cumplimiento IMSS", "Recursos humanos", "Media", D(2026, 10, 8), None, "En proceso", 0.6, "Cédula IDSE"),
+        (lun, "Actualizar programa de obra Planta Querétaro", "Cierre de obra Querétaro", "Proyectos", "Alta", D(2026, 10, 7), None, "Bloqueado", 0.3, "Programa actualizado"),
+        (lun, "Solicitar cotizaciones de acero estructural", "Nave Toluca fase 2", "Compras", "Media", D(2026, 10, 9), None, "Pendiente", 0, ""),
+        (lun, "Elaborar reporte semanal para dirección", "Reportes", "Administración", "Alta", D(2026, 10, 9), None, "Pendiente", 0.2, "Reporte semanal"),
+        (lun, "Documentar el proceso de alta de proveedores", "ERP administrativo", "Administración", "Baja", D(2026, 10, 14), None, "En proceso", 0.35, "Procedimiento"),
+        (lun, "Conciliar caja chica y viáticos", "Control financiero", "Finanzas", "Media", D(2026, 10, 5), D(2026, 10, 6), "Terminado", 1, "Arqueo firmado"),
+        (lun, "Capacitar a usuarios en el nuevo módulo de compras", "ERP administrativo", "Operaciones", "Media", D(2026, 10, 12), None, "Pendiente", 0, ""),
+        (lun, "Cerrar expediente fotográfico de la obra", "Cierre de obra Querétaro", "Operaciones", "Alta", D(2026, 10, 3), None, "En proceso", 0.8, "Álbum de evidencias"),
+        (lun, "Revisar contratos de subcontratistas", "Nave Toluca fase 2", "Dirección", "Media", D(2026, 10, 8), None, "En proceso", 0.5, "Matriz de contratos"),
+        (lun, "Autorizar compras mayores a $50,000", "Compras", "Dirección", "Alta", D(2026, 10, 7), D(2026, 10, 7), "Terminado", 1, "Autorizaciones firmadas"),
+        (lun, "Actualizar indicadores semanales", "Tablero", "Administración", "Media", D(2026, 10, 9), None, "Pendiente", 0, "")])
+    p = wb["PROYECTOS"]
+    reg(p, OP["PRO"][0], [2, 3, 4, 5, 6, 8, 9, 10, 14], [
+        ("Nave industrial Toluca - fase 2", "Grupo Industrial del Norte", "Proyectos", D(2026, 7, 1), D(2026, 12, 15), 0.42, 4800000, 2350000, "En proceso"),
+        ("Remodelación de oficinas corporativas", "Constructora Altamira", "Operaciones", D(2026, 8, 10), D(2026, 11, 20), 0.55, 1250000, 640000, "En proceso"),
+        ("Implementación de ERP administrativo", "Administración", "Administración", D(2026, 9, 1), D(2026, 12, 31), 0.18, 780000, 210000, "En proceso"),
+        ("Auditoría de cumplimiento IMSS", "Recursos humanos", "Recursos humanos", D(2026, 9, 15), D(2026, 10, 30), 0.70, 120000, 95000, "En proceso"),
+        ("Cierre de obra Planta Querétaro", "Operaciones", "Proyectos", D(2026, 5, 4), D(2026, 10, 9), 0.78, 3100000, 3020000, "En proceso")])
+    e = wb["PENDIENTES"]
+    reg(e, OP["PEN"][0], [2, 3, 4, 5, 6, 7, 8, 11], [
+        ("Entregar acta de entrega-recepción firmada", "Cliente Altamira", "Proyectos", "Alta", D(2026, 9, 28), D(2026, 10, 6), "En proceso", "Falta firma del residente"),
+        ("Definir proveedor de acero estructural", "Junta semanal", "Compras", "Alta", D(2026, 9, 30), D(2026, 10, 9), "Pendiente", "Esperando 3a cotización"),
+        ("Regularizar pago de cuotas IMSS de agosto", "Auditoría", "Recursos humanos", "Alta", D(2026, 9, 22), D(2026, 10, 2), "En proceso", "Pendiente comprobante bancario"),
+        ("Actualizar contrato marco con proveedor de concreto", "Dirección", "Dirección", "Media", D(2026, 9, 15), D(2026, 10, 20), "Pendiente", ""),
+        ("Enviar estado de cuenta a clientes con saldo vencido", "Finanzas", "Finanzas", "Media", D(2026, 10, 1), D(2026, 10, 8), "En proceso", ""),
+        ("Cargar facturas de gastos de septiembre", "Contabilidad", "Administración", "Baja", D(2026, 10, 2), D(2026, 10, 12), "Pendiente", ""),
+        ("Resolver diferencia de inventario en bodega 2", "Operaciones", "Operaciones", "Media", D(2026, 9, 25), D(2026, 10, 5), "Terminado", "Ajuste autorizado")])
+    r = wb["RIESGOS"]
+    reg(r, OP["RIE"][0], [2, 3, 4, 5, 8, 9, 10, 11], [
+        ("Retraso en entrega de acero estructural", "Nave Toluca fase 2", 4, 5, "Compras", "Cotizar con dos proveedores alternos y fijar penalización", D(2026, 10, 15), "En mitigación"),
+        ("Sobrecosto en cierre de obra Querétaro", "Cierre de obra Querétaro", 4, 4, "Proyectos", "Congelar alcance y autorizar cambios solo por escrito", D(2026, 10, 12), "Abierto"),
+        ("Observaciones del IMSS por diferencias en cuotas", "Cumplimiento IMSS", 3, 4, "Recursos humanos", "Conciliar cédula de determinación contra nómina", D(2026, 10, 30), "En mitigación"),
+        ("Cobranza vencida mayor a 90 días", "Cobranza", 3, 3, "Finanzas", "Plan de pagos y suspensión de crédito", D(2026, 10, 20), "Abierto"),
+        ("Rotación de personal clave en administración", "ERP administrativo", 2, 4, "Recursos humanos", "Documentar procesos y capacitar suplentes", D(2026, 11, 15), "Abierto"),
+        ("Falla en el respaldo de información", "Tecnología", 2, 5, "Administración", "Respaldo diario en nube y prueba mensual de restauración", D(2026, 10, 25), "Abierto"),
+        ("Inflación en materiales de construcción", "Nave Toluca fase 2", 3, 3, "Compras", "Cláusula de ajuste de precios en contratos", D(2026, 11, 1), "Abierto"),
+        ("Errores en timbrado de facturas", "Facturación", 2, 2, "Administración", "Validación previa con lista de verificación", D(2026, 10, 18), "Abierto")])
+    d = wb["DECISIONES"]
+    reg(d, OP["DEC"][0], [2, 3, 4, 5, 6, 7, 8], [
+        ("Autorizar ampliación de presupuesto de cierre de obra", "Sobrecosto de 4.8% por obra adicional solicitada por el cliente", "A) Autorizar $150,000; B) Negociar costo con cliente; C) Absorber", "Opción B con respaldo de orden de cambio", "Dirección", D(2026, 10, 6), "Pendiente"),
+        ("Seleccionar proveedor de acero estructural", "Tres cotizaciones con diferencias de precio y tiempo de entrega", "A) Proveedor local; B) Importado; C) Dividir pedido", "Opción C para mitigar retraso", "Dirección", D(2026, 10, 9), "Pendiente"),
+        ("Contratar apoyo temporal para cierre fiscal", "Carga de trabajo del cierre de septiembre", "A) Contratar; B) Horas extra", "Opción A por 4 semanas", "Dirección", D(2026, 10, 3), "Aprobada"),
+        ("Cambiar proceso de autorización de compras mayores a $50,000", "Compras sin soporte completo", "A) Doble firma; B) Comité semanal", "Opción A", "Dirección", D(2026, 10, 12), "Pendiente")])
+    i = wb["INDICADORES"]
+    reg(i, OP["IND"][0], [2, 3, 4, 5, 6, 7, 8, 9, 10, 11], [
+        ("% de actividades cumplidas en tiempo", "%", "Mayor es mejor", 90, 78, 82, 85, 84, 88, 86),
+        ("Facturación semanal", "MXN", "Mayor es mejor", 300000, 255000, 280000, 310000, 295000, 330000, 318000),
+        ("Cobranza semanal", "MXN", "Mayor es mejor", 280000, 190000, 210000, 240000, 255000, 262000, 270000),
+        ("Días promedio de cobro", "días", "Menor es mejor", 35, 48, 46, 44, 43, 41, 40),
+        ("Compras autorizadas en tiempo", "%", "Mayor es mejor", 95, 88, 90, 92, 91, 94, 96),
+        ("Incidencias de nómina", "casos", "Menor es mejor", 3, 7, 6, 5, 5, 4, 3),
+        ("Pendientes vencidos", "casos", "Menor es mejor", 5, 12, 11, 9, 8, 7, 6),
+        ("Avance promedio de proyectos", "%", "Mayor es mejor", 60, 38, 41, 44, 46, 49, 52)])
+
+
 EJEMPLOS = {
     "1_Contabilidad_y_Finanzas/01_Control_de_Ingresos_y_Gastos": ingresos_gastos,
+    "7_Control_Directivo/01_Control_Operativo_Semanal": control_operativo,
     "1_Contabilidad_y_Finanzas/02_Control_de_Caja_Chica": caja_chica,
     "1_Contabilidad_y_Finanzas/03_Flujo_de_Efectivo_Anual": flujo,
     "1_Contabilidad_y_Finanzas/04_Cuentas_por_Cobrar": cxc,
@@ -336,7 +404,7 @@ def generar():
     shutil.rmtree(EJ, ignore_errors=True)
     for ruta, fn in EJEMPLOS.items():
         wb = load_workbook(os.path.join(PLANT, ruta + ".xlsx"))
-        fn(wb["FORMATO"])
+        fn(wb["FORMATO"] if "FORMATO" in wb.sheetnames else wb)
         mayus(wb)
         destino = os.path.join(EJ, ruta + "_EJEMPLO.xlsx")
         os.makedirs(os.path.dirname(destino), exist_ok=True)

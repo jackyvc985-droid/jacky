@@ -18,6 +18,7 @@ CATEGORIAS = {
     "4_Documentos_y_Actas": ("Documentos y Actas", "Excel"),
     "5_Documentos_Word": ("Contratos, Cartas y Actas", "Word"),
     "6_Politicas_y_Procedimientos": ("Políticas y Procedimientos", "Word"),
+    "7_Control_Directivo": ("Control Directivo", "Excel y Word"),
 }
 
 
@@ -43,7 +44,7 @@ def fuente(tam, bold=False):
         return ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", tam)
 
 
-ACENTOS = {"Nomina": "Nómina", "Conciliacion": "Conciliación", "Evaluacion": "Evaluación", "Desempeno": "Desempeño",
+ACENTOS = {"Dias": "Días", "Implementacion": "Implementación", "Modelo Operativo Ordenar Planear Ejecutar Cerrar": "Modelo Operativo: Ordenar, Planear, Ejecutar, Cerrar", "Nomina": "Nómina", "Conciliacion": "Conciliación", "Evaluacion": "Evaluación", "Desempeno": "Desempeño",
            "Cotizacion": "Cotización", "Minuta de Reunion": "Minuta de Reunión", "Prestacion": "Prestación",
            "Entrega Recepcion": "Entrega-Recepción", "Politica": "Política", "Politicas": "Políticas", "Viaticos": "Viáticos",
            "Asistencia y Puntualidad": "Asistencia y Puntualidad", "Procedimiento de Control de Inventarios": "Procedimiento de Control de Inventarios",
@@ -72,6 +73,10 @@ def pagina_con_texto(pdf, texto):
     return None
 
 
+PISTA_FORMATO = {"01_Control_Operativo_Semanal": "ACTIVIDADES DE LA SEMANA"}
+PISTAS_RESUMEN = ("RESUMEN D", "TABLERO EJECUTIVO")
+
+
 def vistas_previas():
     """Usa la versión con datos de ejemplo si existe. Excel: página 1 = portada (_portada.png),
     página 2 = formato, y el tablero Resumen (_resumen.png) si lo tiene. Word: página 1."""
@@ -89,12 +94,14 @@ def vistas_previas():
                 pdf = os.path.join(tmp, os.path.basename(origen).rsplit(".", 1)[0] + ".pdf")
                 destino = os.path.join(PREV, cat, base)
                 pag = 2 if f.endswith(".xlsx") else 1
+                if base in PISTA_FORMATO:
+                    pag = pagina_con_texto(pdf, PISTA_FORMATO[base]) or pag
                 subprocess.run(["pdftoppm", "-png", "-r", "110", "-f", str(pag), "-l", str(pag), "-singlefile",
                                 pdf, destino], check=True)
                 if f.endswith(".xlsx"):
                     subprocess.run(["pdftoppm", "-png", "-r", "70", "-f", "1", "-l", "1", "-singlefile",
                                     pdf, destino + "_portada"], check=True)
-                    pr = pagina_con_texto(pdf, "RESUMEN D")
+                    pr = next((x for x in (pagina_con_texto(pdf, t_) for t_ in PISTAS_RESUMEN) if x), None)
                     if pr:
                         subprocess.run(["pdftoppm", "-png", "-r", "110", "-f", str(pr), "-l", str(pr), "-singlefile",
                                         pdf, destino + "_resumen"], check=True)
@@ -239,22 +246,23 @@ def portadas():
         todos += n
         m = muestras_de(cat)
         mu.append(m[0])
-        chips = (["FÓRMULAS AUTOMÁTICAS", "HOJAS PROTEGIDAS", "CON GRÁFICAS"] if fmt == "Excel" else ["EDITABLE EN WORD", "CAMPOS RESALTADOS", "LISTO PARA PDF"])
+        chips = (["FÓRMULAS AUTOMÁTICAS", "HOJAS PROTEGIDAS", "CON GRÁFICAS"] if fmt == "Excel" else
+                 ["EXCEL + WORD", "SEMÁFOROS", "TABLERO EJECUTIVO"] if "Excel" in fmt else ["EDITABLE EN WORD", "CAMPOS RESALTADOS", "LISTO PARA PDF"])
         portada_generica(cat, "portadas", "Colección profesional", nombre, f"{n} formatos administrativos en {fmt}", chips, m, (n, "formatos"))
     portada_generica("0_Paquete_Completo", "portadas", "Paquete completo", "Paquete administrativo", f"{todos} formatos · Excel y Word",
-                     ["EXCEL + WORD", "CON EJEMPLOS", "LISTO PARA USAR"], [mu[0], mu[3], mu[5]], (todos, "formatos"))
+                     ["EXCEL + WORD", "CON EJEMPLOS", "LISTO PARA USAR"], [mu[0], mu[3], mu[6]], (todos, "formatos"))
     # una portada por producto (para las fichas de la tienda)
     for cat, (nombre, fmt) in CATEGORIAS.items():
         for f in listar(cat):
             base = os.path.splitext(f)[0]
             ruta = os.path.join(PREV, cat, base)
             muestras = [ruta + ".png"] + ([ruta + "_resumen.png"] if os.path.exists(ruta + "_resumen.png") else [])
-            if fmt == "Excel":
+            if f.endswith(".xlsx"):
                 bullets = ["Fórmulas y totales automáticos", "Hojas protegidas y listas desplegables",
                            "Tablero con gráficas" if len(muestras) > 1 else "Portada, ayuda y glosario incluidos"]
             else:
                 bullets = ["Campos resaltados para llenar", "Recuadro para tu logotipo", "Editable en Word, listo para PDF"]
-            portada_generica(base, "portadas_productos", nombre, bonito(f), f"Formato en {fmt} · México", [], muestras, bullets=bullets)
+            portada_generica(base, "portadas_productos", nombre, bonito(f), f"Formato en {'Excel' if f.endswith('.xlsx') else 'Word'} · México", [], muestras, bullets=bullets)
 
 
 def entrega_completa():
@@ -263,7 +271,7 @@ def entrega_completa():
     with zipfile.ZipFile(destino, "w", zipfile.ZIP_DEFLATED) as z:
         for carpeta, nombre in (("plantillas", "1_Plantillas_en_blanco"), ("ejemplos", "2_Ejemplos_con_datos"),
                                 ("portadas", "3_Portadas_por_coleccion"), ("portadas_productos", "4_Portadas_por_producto"),
-                                ("vistas_previas", "5_Vistas_previas")):
+                                ("vistas_previas", "5_Vistas_previas"), ("marketing", "6_Material_de_ventas")):
             base = os.path.join(RAIZ, carpeta)
             for d_, _, fs in os.walk(base):
                 for f in fs:

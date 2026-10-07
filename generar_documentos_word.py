@@ -11,7 +11,7 @@ from docx.oxml import OxmlElement
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plantillas", "5_Documentos_Word")
 AZUL = RGBColor(0x0B, 0x2A, 0x4A)    # azul marino
-PETROL = RGBColor(0x1B, 0x6B, 0x73)  # verde petróleo
+PETROL = RGBColor(0x0E, 0x7C, 0x8B)  # azul turquesa
 GRIS = RGBColor(0x5B, 0x6B, 0x78)
 ORO = "C9A227"
 AVISO = ("Formato de uso general con fines administrativos y orientativos. No constituye asesoría legal; "
@@ -238,10 +238,10 @@ def aviso(d):
     r.font.color.rgb = RGBColor(0x7F, 0x7F, 0x7F)
 
 
-def guardar(d, nombre):
-    carpeta = OUT if int(nombre[:2]) < 9 else OUT.replace("5_Documentos_Word", "6_Politicas_y_Procedimientos")
-    os.makedirs(carpeta, exist_ok=True)
-    d.save(os.path.join(carpeta, nombre + ".docx"))
+def guardar(d, nombre, carpeta="5_Documentos_Word"):
+    destino = OUT.replace("5_Documentos_Word", carpeta)
+    os.makedirs(destino, exist_ok=True)
+    d.save(os.path.join(destino, nombre + ".docx"))
     print("OK", nombre)
 
 
@@ -540,7 +540,7 @@ def manual_caja_chica():
     seccion(d, "7. Formatos relacionados")
     vinetas(d, ["Control de caja chica (Excel).", "Vale provisional de caja.", "Acta de arqueo de caja."])
     control_cambios(d)
-    guardar(d, "09_Manual_de_Procedimiento_de_Caja_Chica")
+    guardar(d, "09_Manual_de_Procedimiento_de_Caja_Chica", "6_Politicas_y_Procedimientos")
 
 
 def politica_compras():
@@ -580,7 +580,7 @@ def politica_compras():
     seccion(d, "7. Formatos relacionados")
     vinetas(d, ["Orden de compra (Excel).", "Cuadro comparativo de cotizaciones (Excel).", "Directorio de clientes y proveedores (Excel)."])
     control_cambios(d)
-    guardar(d, "10_Politica_de_Compras_y_Adquisiciones")
+    guardar(d, "10_Politica_de_Compras_y_Adquisiciones", "6_Politicas_y_Procedimientos")
 
 
 def politica_viaticos():
@@ -617,7 +617,7 @@ def politica_viaticos():
     seccion(d, "6. Formatos relacionados")
     vinetas(d, ["Solicitud de viáticos.", "Informe de gastos de viaje.", "Control de ingresos y gastos (Excel)."])
     control_cambios(d)
-    guardar(d, "11_Politica_de_Viaticos_y_Gastos_de_Viaje")
+    guardar(d, "11_Politica_de_Viaticos_y_Gastos_de_Viaje", "6_Politicas_y_Procedimientos")
 
 
 def reglamento_asistencia():
@@ -651,7 +651,7 @@ def reglamento_asistencia():
     seccion(d, "6. Formatos relacionados")
     vinetas(d, ["Control de asistencia mensual (Excel).", "Solicitud de vacaciones o permiso (Excel).", "Acta administrativa (Word)."])
     control_cambios(d)
-    guardar(d, "12_Politica_de_Asistencia_y_Puntualidad")
+    guardar(d, "12_Politica_de_Asistencia_y_Puntualidad", "6_Politicas_y_Procedimientos")
 
 
 def procedimiento_inventarios():
@@ -687,7 +687,7 @@ def procedimiento_inventarios():
     seccion(d, "7. Formatos relacionados")
     vinetas(d, ["Control de inventario (Excel).", "Kardex de costo promedio (Excel).", "Orden de compra (Excel)."])
     control_cambios(d)
-    guardar(d, "13_Procedimiento_de_Control_de_Inventarios")
+    guardar(d, "13_Procedimiento_de_Control_de_Inventarios", "6_Politicas_y_Procedimientos")
 
 
 def checklist_alta():
@@ -717,12 +717,180 @@ def checklist_alta():
     firmas(d, ["Colaborador", "Jefe inmediato", "Recursos Humanos"])
     d.add_paragraph()
     aviso(d)
-    guardar(d, "14_Checklist_de_Alta_de_Colaborador")
+    guardar(d, "14_Checklist_de_Alta_de_Colaborador", "6_Politicas_y_Procedimientos")
+
+
+# ---------------------------------------------------------------- CONTROL DIRECTIVO
+VERDE, AMBAR, CORAL_HEX = "C6EFCE", "FFEB9C", "FFD6D0"
+
+
+def sombrear(celda, hex_):
+    sh = OxmlElement("w:shd")
+    sh.set(qn("w:val"), "clear")
+    sh.set(qn("w:fill"), hex_)
+    celda._tc.get_or_add_tcPr().append(sh)
+
+
+def tabla_datos(d, encabezados, filas_vacias, anchos, ejemplo=None):
+    t = tabla(d, list(encabezados), filas_vacias, list(anchos))
+    for i, fila in enumerate(ejemplo or [], 1):
+        for j, v in enumerate(fila):
+            t.cell(i, j).text = ""
+            runs(t.cell(i, j).paragraphs[0], v)
+            for x in t.cell(i, j).paragraphs[0].runs:
+                x.font.size = Pt(9)
+    for row in t.rows[1:]:
+        for c in row.cells:
+            for pp in c.paragraphs:
+                for x in pp.runs:
+                    x.font.size = Pt(9)
+    d.add_paragraph()
+    return t
+
+
+def reporte_semanal():
+    d = doc_base("Reporte semanal para directivos", "Resumen ejecutivo, avances, pendientes, riesgos, decisiones y próximos pasos", "FO-DIR-01")
+    t = d.add_table(rows=2, cols=4)
+    t.style = "Table Grid"
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    for i, (a, b) in enumerate((("SEMANA", "Del [FECHA] al [FECHA]"), ("CLIENTE / PROYECTO", "[NOMBRE]"), ("ELABORÓ", "[NOMBRE Y PUESTO]"), ("SEMÁFORO GENERAL", "[VERDE / ÁMBAR / ROJO]"))):
+        h, v = t.cell(0, i), t.cell(1, i)
+        h.text = ""
+        r = h.paragraphs[0].add_run(a)
+        r.bold = True
+        r.font.size = Pt(8)
+        sombrear(h, "E6ECF1")
+        v.text = ""
+        runs(v.paragraphs[0], b)
+        for x in v.paragraphs[0].runs:
+            x.font.size = Pt(9.5)
+    sombrear(t.cell(1, 3), AMBAR)
+    d.add_paragraph()
+    seccion(d, "1. Resumen ejecutivo")
+    par(d, "[Conclusión en una frase: cómo va la operación y qué necesitas de dirección. Copia aquí el texto automático de la celda B10 del TABLERO del libro de control operativo.]")
+    vinetas(d, ["[Logro principal de la semana].", "[Principal desviación o preocupación].", "[Decisión o apoyo que se requiere de dirección]."])
+    seccion(d, "2. Indicadores clave")
+    tabla_datos(d, ("Indicador", "Meta", "Real", "Tendencia", "Semáforo"), 5, (6.5, 2.5, 2.5, 2.5, 3), [
+        ("[% de actividades cumplidas en tiempo]", "[90%]", "[ ]", "[▲ ▼ ●]", "[ ]"), ("[Facturación semanal]", "[ ]", "[ ]", "[ ]", "[ ]"),
+        ("[Cobranza semanal]", "[ ]", "[ ]", "[ ]", "[ ]")])
+    seccion(d, "3. Avances de la semana")
+    tabla_datos(d, ("Actividad / entregable", "Proyecto o área", "Responsable", "Resultado y evidencia"), 5, (5.8, 3.6, 3, 4.6))
+    seccion(d, "4. Pendientes críticos")
+    tabla_datos(d, ("Pendiente", "Responsable", "Fecha compromiso", "Estatus", "Semáforo"), 4, (6.3, 3, 3, 2.5, 2.2))
+    seccion(d, "5. Riesgos")
+    tabla_datos(d, ("Riesgo", "Nivel (alto, medio, bajo)", "Acción de mitigación", "Responsable"), 4, (5.3, 2.7, 6, 3))
+    seccion(d, "6. Decisiones requeridas a dirección")
+    tabla_datos(d, ("Decisión", "Opciones", "Recomendación", "Fecha requerida"), 3, (5, 4.5, 4.5, 3))
+    seccion(d, "7. Próximos pasos (siguiente semana)")
+    tabla_datos(d, ("Actividad", "Responsable", "Fecha", "Entregable"), 4, (6.6, 3.4, 2.6, 4.4))
+    par(d, "Fuente de datos: libro de control operativo semanal (hoja TABLERO). Semáforos: verde = en control, ámbar = atención, coral/rojo = acción inmediata.", align=WD_ALIGN_PARAGRAPH.LEFT)
+    firmas(d, ["Elaboró", "Revisó"])
+    d.add_paragraph()
+    aviso(d)
+    guardar(d, "02_Reporte_Semanal_para_Directivos", "7_Control_Directivo")
+
+
+def plan_30_dias():
+    d = doc_base("Plan de implementación de 30 días", "Ordenar, planear, ejecutar y cerrar: de la solicitud al primer reporte para dirección", "PL-IMP-01")
+    seccion(d, "1. Objetivo")
+    par(d, "Poner bajo control la operación administrativa de [NOMBRE DEL CLIENTE] en 30 días: procesos documentados, responsables definidos, controles en operación "
+           "y un reporte semanal que permita a dirección decidir con información.")
+    seccion(d, "2. Resultados esperados al día 30")
+    vinetas(d, ["Diagnóstico de procesos con brechas priorizadas.", "Expediente documental completo y ordenado.",
+                "Controles de nómina, compras, facturación y cobranza en operación.", "Tablero semanal con semáforos y reporte para directivos.",
+                "Plan de mejora de 90 días aprobado por dirección."])
+    sem = [
+        ("3. Semana 1 - ORDENAR (días 1 a 7)", [("Reunión de arranque y definición de alcance", "Dirección / Consultor", "Acta de arranque", "Día 1"),
+                                                  ("Levantamiento de procesos y documentos existentes", "Consultor", "Mapa de procesos", "Día 3"),
+                                                  ("Recepción de accesos, documentos fiscales y laborales", "Administración", "Expediente inicial", "Día 4"),
+                                                  ("Diagnóstico administrativo y semáforo de cumplimiento", "Consultor", "Informe de diagnóstico", "Día 7")]),
+        ("4. Semana 2 - PLANEAR (días 8 a 14)", [("Priorizar brechas (urgente / importante)", "Consultor / Dirección", "Matriz de prioridades", "Día 9"),
+                                                   ("Definir responsables, calendario y políticas", "Dirección", "Matriz de responsables", "Día 10"),
+                                                   ("Configurar libro de control operativo y catálogos", "Consultor", "Libro de control semanal", "Día 12"),
+                                                   ("Aprobar plan de trabajo", "Dirección", "Plan firmado", "Día 14")]),
+        ("5. Semana 3 - EJECUTAR (días 15 a 21)", [("Operar nómina, compras y facturación con los nuevos controles", "Administración", "Registros y evidencias", "Día 17"),
+                                                     ("Regularizar pendientes críticos fiscales e IMSS", "Finanzas / RH", "Acuses y comprobantes", "Día 19"),
+                                                     ("Capacitar al equipo en formatos y tablero", "Consultor", "Lista de asistencia", "Día 20"),
+                                                     ("Primer reporte semanal a dirección", "Consultor", "Reporte semanal", "Día 21")]),
+        ("6. Semana 4 - CERRAR (días 22 a 30)", [("Revisar indicadores y cerrar pendientes", "Administración", "Pendientes cerrados", "Día 25"),
+                                                   ("Documentar procedimientos finales", "Consultor", "Manuales y políticas", "Día 28"),
+                                                   ("Presentar resultados y plan de mejora a 90 días", "Consultor / Dirección", "Presentación de cierre", "Día 29"),
+                                                   ("Entrega de expediente final", "Consultor", "Expediente completo", "Día 30")])]
+    for tit, filas_ in sem:
+        seccion(d, tit)
+        tabla_datos(d, ("Actividad", "Responsable", "Entregable", "Fecha"), len(filas_), (7, 3.6, 3.7, 1.7), filas_)
+    seccion(d, "7. Documentos requeridos al inicio")
+    tabla_datos(d, ("Documento", "Área responsable", "Recibido (✔)", "Observaciones"), 8, (6.8, 3.6, 2.4, 3.2), [
+        ("Acta constitutiva y poderes", "Dirección", "", ""), ("Constancia de situación fiscal y opinión de cumplimiento", "Finanzas", "", ""),
+        ("Últimas 3 declaraciones mensuales y anual", "Finanzas", "", ""), ("Nómina de los últimos 3 meses y altas/bajas IMSS", "Recursos humanos", "", ""),
+        ("Contratos vigentes de clientes y proveedores", "Dirección / Compras", "", ""), ("Estados de cuenta bancarios y conciliaciones", "Finanzas", "", ""),
+        ("Inventario, activos fijos y presupuestos", "Operaciones", "", ""), ("Organigrama y descripción de puestos", "Recursos humanos", "", "")])
+    seccion(d, "8. Gobierno del plan")
+    vinetas(d, ["Reunión semanal de seguimiento de 30 minutos (mismo día y hora).", "Reporte semanal para directivos con semáforos, riesgos y decisiones.",
+                "Escalamiento: un pendiente en rojo por más de 3 días se lleva a dirección.", "Comunicación: canal único (correo o WhatsApp corporativo) para acuerdos y evidencias."])
+    seccion(d, "9. Entregables de arranque")
+    vinetas(d, ["Acta de arranque y matriz de responsables.", "Mapa de procesos y matriz de riesgos.", "Libro de control operativo semanal configurado.", "Formato de reporte semanal."])
+    firmas(d, ["Dirección", "Consultor responsable"])
+    d.add_paragraph()
+    aviso(d)
+    guardar(d, "03_Plan_de_Implementacion_30_Dias", "7_Control_Directivo")
+
+
+def modelo_operativo():
+    d = doc_base("Modelo operativo: ordenar, planear, ejecutar, cerrar", "Un método simple para operar con control y cerrar cada proyecto con evidencia", "MO-GEN-01")
+    par(d, "Orden para operar. Control para crecer. Menos improvisación, más trazabilidad. Un proyecto no termina al entregar: termina al cerrar bien.", align=WD_ALIGN_PARAGRAPH.CENTER)
+    pasos = [("1. ORDENAR", "0B2A4A", ["Levantar procesos, documentos y responsables.", "Eliminar duplicidades y pendientes ocultos.", "Definir qué se controla y con qué formato."],
+              "Mapa de procesos · Expediente · Matriz de responsables"),
+             ("2. PLANEAR", "0E7C8B", ["Priorizar por urgencia e impacto.", "Calendario, presupuesto y recursos.", "Riesgos y plan de mitigación."],
+              "Plan de trabajo · Presupuesto anual · Matriz de riesgos"),
+             ("3. EJECUTAR", "C9A227", ["Operar con formatos y controles estándar.", "Seguimiento semanal con semáforos.", "Escalar desviaciones a tiempo."],
+              "Control operativo semanal · Reporte semanal · Indicadores"),
+             ("4. CERRAR", "E8604C", ["Validar entregables y evidencia.", "Cerrar pendientes y conciliar cifras.", "Documentar lecciones aprendidas."],
+              "Acta de entrega-recepción · Expediente final · Informe de cierre")]
+    t = d.add_table(rows=3, cols=4)
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    for j, (tit, color, items, ent) in enumerate(pasos):
+        h = t.cell(0, j)
+        h.text = ""
+        r = h.paragraphs[0].add_run(tit)
+        r.bold = True
+        r.font.size = Pt(13)
+        r.font.color.rgb = RGBColor(255, 255, 255) if color != "C9A227" else RGBColor(0x0B, 0x2A, 0x4A)
+        h.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        sombrear(h, color)
+        b = t.cell(1, j)
+        b.text = ""
+        for k, it in enumerate(items):
+            pp = b.paragraphs[0] if k == 0 else b.add_paragraph()
+            rr = pp.add_run("• " + it)
+            rr.font.size = Pt(9.5)
+        e = t.cell(2, j)
+        e.text = ""
+        rr = e.paragraphs[0].add_run("ENTREGABLES\n")
+        rr.bold = True
+        rr.font.size = Pt(8)
+        rr.font.color.rgb = PETROL
+        r2 = e.paragraphs[0].add_run(ent)
+        r2.font.size = Pt(9)
+        sombrear(e, "F4F6F8")
+    d.add_paragraph()
+    seccion(d, "Responsables y fechas")
+    tabla_datos(d, ("Paso", "Responsable", "Fecha inicio", "Fecha cierre", "Evidencia"), 4, (3, 4, 3, 3, 4), [
+        ("Ordenar", "[NOMBRE]", "[FECHA]", "[FECHA]", "[DOCUMENTO]"), ("Planear", "[NOMBRE]", "[FECHA]", "[FECHA]", "[DOCUMENTO]"),
+        ("Ejecutar", "[NOMBRE]", "[FECHA]", "[FECHA]", "[DOCUMENTO]"), ("Cerrar", "[NOMBRE]", "[FECHA]", "[FECHA]", "[DOCUMENTO]")])
+    seccion(d, "Cómo usarlo con el paquete administrativo")
+    vinetas(d, ["**Ordenar:** Directorio de clientes y proveedores, Control de activos fijos, Políticas y procedimientos.",
+                "**Planear:** Presupuesto anual, Flujo de efectivo anual, Plan de implementación de 30 días.",
+                "**Ejecutar:** Control operativo semanal, Nómina, Compras, Cuentas por cobrar.",
+                "**Cerrar:** Conciliación bancaria, Acta de entrega-recepción, Reporte semanal para directivos."])
+    aviso(d)
+    guardar(d, "04_Modelo_Operativo_Ordenar_Planear_Ejecutar_Cerrar", "7_Control_Directivo")
 
 
 if __name__ == "__main__":
     for f in (contrato_servicios, carta_renuncia, constancia_laboral, carta_cobranza, acta_entrega,
               acta_administrativa, contrato_confidencialidad, carta_poder,
               manual_caja_chica, politica_compras, politica_viaticos, reglamento_asistencia,
-              procedimiento_inventarios, checklist_alta):
+              procedimiento_inventarios, checklist_alta,
+              reporte_semanal, plan_30_dias, modelo_operativo):
         f()

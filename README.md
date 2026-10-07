@@ -1,22 +1,26 @@
-# Papeles de trabajo administrativos (México)
+# Papeles de trabajo administrativos (México) · Grupo Canville
 
-28 formatos editables listos para vender: 20 plantillas en Excel y 8 documentos en Word (campos a llenar resaltados).
+38 formatos editables listos para vender: 22 libros de Excel y 16 documentos de Word. Identidad: azul marino, azul turquesa, coral, dorado y gris ejecutivo;
+fuente Abadi (incluida en Microsoft 365); títulos, encabezados y etiquetas en mayúsculas.
 
-Cada Excel incluye: portada con instrucciones, formato con fórmulas automáticas y listas desplegables, recuadro para el logo
-del comprador, hoja protegida (solo se editan las celdas de captura; sin contraseña: Revisar > Desproteger hoja) e impresión
-ajustada. Cinco de ellos (ingresos y gastos, flujo de efectivo, cuentas por cobrar, inventario y presupuesto) traen además una
-hoja **Resumen** con indicadores y gráficas.
+Cada Excel incluye: PORTADA con contenido e instrucciones, FORMATO con fórmulas y listas desplegables, tablero RESUMEN con gráficas (en 14 de ellos),
+CATÁLOGOS editables, AYUDA (preguntas frecuentes, glosario y lista de verificación), recuadro para el logo del comprador y hojas protegidas
+(solo se editan las celdas de captura; sin contraseña: Revisar > Desproteger hoja).
 
 | Carpeta (`plantillas/`) | Contenido |
 |---|---|
-| `1_Contabilidad_y_Finanzas` | Ingresos y gastos, caja chica, flujo de efectivo, cuentas por cobrar, conciliación bancaria, presupuesto anual, activos fijos, directorio de clientes/proveedores |
+| `1_Contabilidad_y_Finanzas` | Ingresos y gastos, caja chica, flujo de efectivo, cuentas por cobrar, conciliación bancaria, presupuesto anual, activos fijos, directorio |
 | `2_Recursos_Humanos` | Asistencia, nómina simplificada, vacaciones (LFT), evaluación de desempeño, solicitud de vacaciones/permiso |
 | `3_Inventarios_y_Compras` | Inventario, kardex costo promedio, orden de compra, cuadro comparativo de cotizaciones |
 | `4_Documentos_y_Actas` | Cotización, recibo de pago, minuta de reunión |
 | `5_Documentos_Word` | Contrato de servicios, renuncia, constancia laboral, carta de cobranza, acta entrega-recepción, acta administrativa, NDA, carta poder |
+| `6_Politicas_y_Procedimientos` | Manual de caja chica, políticas de compras, viáticos y asistencia, procedimiento de inventarios, checklist de alta |
+| `7_Control_Directivo` | **Control operativo semanal** (semáforos, matriz de riesgos, tablero), reporte semanal para directivos, plan de 30 días, modelo operativo |
 
-Material para la tienda:
+Material para la tienda y ventas:
 - `ejemplos/` – versiones con datos de ejemplo de 17 plantillas (también van en `Paquete_Completo.zip`, carpeta `Ejemplos_con_datos`).
+- `marketing/` – presentación comercial de 10 láminas (PDF y HTML interactivo), 8 infografías 1080x1350, mensajes de WhatsApp, guion de presentación.
+- `portadas_productos/` – una portada de venta por producto (34 + 4).
 - `vistas_previas/` – capturas (PNG) de cada formato con datos de ejemplo; `_portada` y `_resumen` cuando aplica.
 - `portadas/` – imagen cuadrada 1200x1200 por categoría y del paquete completo con capturas reales (marca configurable en `generar_paquetes.py`).
 - `paquetes_zip/` – un ZIP por categoría y `Paquete_Completo.zip`.
@@ -28,6 +32,7 @@ python3 generar_plantillas.py
 python3 generar_documentos_word.py
 python3 generar_ejemplos.py
 python3 generar_paquetes.py
+python3 generar_marketing.py   # logo: assets/logo.png · contacto: assets/config_marca.json
 ```
 
 Convención en Excel: celdas crema = captura, grises = cálculo automático.

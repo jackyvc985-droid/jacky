@@ -1,0 +1,5 @@
+Personaliza el material de ventas:
+1) Copia tu logotipo oficial como  assets/logo.png  (fondo transparente, de preferencia horizontal).
+2) Escribe tu correo, teléfono y sitio web en  assets/config_marca.json
+3) Ejecuta:  python3 generar_marketing.py
+Si no hay logo, se usa el nombre de la marca como texto; los datos de contacto vacíos no se muestran.
