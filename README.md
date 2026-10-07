@@ -1,7 +1,11 @@
 # Papeles de trabajo administrativos (México)
 
-28 formatos editables listos para vender: 20 plantillas en Excel (fórmulas automáticas, listas
-desplegables, impresión ajustada, hoja de instrucciones) y 8 documentos en Word (campos a llenar resaltados).
+28 formatos editables listos para vender: 20 plantillas en Excel y 8 documentos en Word (campos a llenar resaltados).
+
+Cada Excel incluye: portada con instrucciones, formato con fórmulas automáticas y listas desplegables, recuadro para el logo
+del comprador, hoja protegida (solo se editan las celdas de captura; sin contraseña: Revisar > Desproteger hoja) e impresión
+ajustada. Cinco de ellos (ingresos y gastos, flujo de efectivo, cuentas por cobrar, inventario y presupuesto) traen además una
+hoja **Resumen** con indicadores y gráficas.
 
 | Carpeta (`plantillas/`) | Contenido |
 |---|---|
@@ -12,8 +16,9 @@ desplegables, impresión ajustada, hoja de instrucciones) y 8 documentos en Word
 | `5_Documentos_Word` | Contrato de servicios, renuncia, constancia laboral, carta de cobranza, acta entrega-recepción, acta administrativa, NDA, carta poder |
 
 Material para la tienda:
-- `vistas_previas/` – captura (PNG) de cada formato, para las fichas de producto.
-- `portadas/` – imagen cuadrada 1200x1200 por categoría y del paquete completo (cambia `MARCA` en `generar_paquetes.py`).
+- `ejemplos/` – versiones con datos de ejemplo de 17 plantillas (también van en `Paquete_Completo.zip`, carpeta `Ejemplos_con_datos`).
+- `vistas_previas/` – capturas (PNG) de cada formato con datos de ejemplo; `_portada` y `_resumen` cuando aplica.
+- `portadas/` – imagen cuadrada 1200x1200 por categoría y del paquete completo con capturas reales (marca configurable en `generar_paquetes.py`).
 - `paquetes_zip/` – un ZIP por categoría y `Paquete_Completo.zip`.
 
 Regenerar todo (requiere `openpyxl`, `python-docx`, `Pillow`, LibreOffice y `pdftoppm`):
@@ -21,8 +26,9 @@ Regenerar todo (requiere `openpyxl`, `python-docx`, `Pillow`, LibreOffice y `pdf
 ```
 python3 generar_plantillas.py
 python3 generar_documentos_word.py
+python3 generar_ejemplos.py
 python3 generar_paquetes.py
 ```
 
-Convención en Excel: celdas amarillas = captura, grises = cálculo automático.
+Convención en Excel: celdas crema = captura, grises = cálculo automático.
 Los formatos legales (Word) y la nómina son de uso orientativo; se recomienda revisión de un profesional.

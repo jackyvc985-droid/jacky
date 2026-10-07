@@ -41,17 +41,32 @@ def listar(cat):
     return sorted(f for f in os.listdir(os.path.join(PLANT, cat)) if f.endswith((".xlsx", ".docx")))
 
 
+def pagina_con_texto(pdf, texto):
+    """Número de página (1-based) del PDF cuyo texto contiene `texto`, o None."""
+    info = subprocess.run(["pdfinfo", pdf], capture_output=True, text=True).stdout
+    n = int(next(l.split()[-1] for l in info.splitlines() if l.startswith("Pages:")))
+    for pg in range(1, n + 1):
+        t = subprocess.run(["pdftotext", "-f", str(pg), "-l", str(pg), pdf, "-"], capture_output=True, text=True).stdout
+        if texto in t:
+            return pg
+    return None
+
+
 def vistas_previas():
-    """Excel: página 1 = portada (_portada.png), página 2 = formato. Word: página 1."""
+    """Usa la versión con datos de ejemplo si existe. Excel: página 1 = portada (_portada.png),
+    página 2 = formato, y el tablero Resumen (_resumen.png) si lo tiene. Word: página 1."""
     shutil.rmtree(PREV, ignore_errors=True)
     for cat in CATEGORIAS:
         os.makedirs(os.path.join(PREV, cat))
         with tempfile.TemporaryDirectory() as tmp:
             for f in listar(cat):
                 base = os.path.splitext(f)[0]
-                subprocess.run(["soffice", "--headless", "--convert-to", "pdf", "--outdir", tmp,
-                                os.path.join(PLANT, cat, f)], capture_output=True)
-                pdf = os.path.join(tmp, base + ".pdf")
+                origen = os.path.join(PLANT, cat, f)
+                ej = os.path.join(RAIZ, "ejemplos", cat, base + "_EJEMPLO.xlsx")
+                if os.path.exists(ej):
+                    origen = ej
+                subprocess.run(["soffice", "--headless", "--convert-to", "pdf", "--outdir", tmp, origen], capture_output=True)
+                pdf = os.path.join(tmp, os.path.basename(origen).rsplit(".", 1)[0] + ".pdf")
                 destino = os.path.join(PREV, cat, base)
                 pag = 2 if f.endswith(".xlsx") else 1
                 subprocess.run(["pdftoppm", "-png", "-r", "110", "-f", str(pag), "-l", str(pag), "-singlefile",
@@ -59,6 +74,10 @@ def vistas_previas():
                 if f.endswith(".xlsx"):
                     subprocess.run(["pdftoppm", "-png", "-r", "70", "-f", "1", "-l", "1", "-singlefile",
                                     pdf, destino + "_portada"], check=True)
+                    pr = pagina_con_texto(pdf, "RESUMEN D")
+                    if pr:
+                        subprocess.run(["pdftoppm", "-png", "-r", "110", "-f", str(pr), "-l", str(pr), "-singlefile",
+                                        pdf, destino + "_resumen"], check=True)
 
 
 def recortar(im):
@@ -128,9 +147,16 @@ def portada(nombre_archivo, titulo, subtitulo, items, formato, muestras):
 
 
 def muestras_de(cat, n=3):
-    arch = [f for f in listar(cat)]
-    elegidos = arch[:n]
-    return [os.path.join(PREV, cat, os.path.splitext(f)[0] + ".png") for f in elegidos]
+    """Primer formato + hasta 2 tableros (Resumen) si existen; completa con más formatos."""
+    bases = [os.path.join(PREV, cat, os.path.splitext(f)[0]) for f in listar(cat)]
+    formas = [b + ".png" for b in bases]
+    tableros = [b + "_resumen.png" for b in bases if os.path.exists(b + "_resumen.png")]
+    elegidas = [formas[0]] + tableros[:2]
+    for f in formas[1:]:
+        if len(elegidas) >= n:
+            break
+        elegidas.append(f)
+    return elegidas[:n]
 
 
 def portadas():
@@ -158,6 +184,11 @@ def zips():
         for cat in CATEGORIAS:
             for f in listar(cat):
                 z.write(os.path.join(PLANT, cat, f), os.path.join(cat, f))
+        ej = os.path.join(RAIZ, "ejemplos")  # versiones con datos de ejemplo, como bonus
+        for carpeta, _, archivos in os.walk(ej):
+            for f in archivos:
+                ruta = os.path.join(carpeta, f)
+                z.write(ruta, os.path.join("Ejemplos_con_datos", os.path.relpath(ruta, ej)))
 
 
 if __name__ == "__main__":

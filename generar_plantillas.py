@@ -2,7 +2,7 @@
 """Genera plantillas administrativas en Excel (México) en ./plantillas/<categoria>/."""
 import os
 from openpyxl import Workbook
-from openpyxl.styles import Font as _Font, PatternFill, Alignment, Border, Side
+from openpyxl.styles import Font as _Font, PatternFill, Alignment, Border, Side, Protection
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.utils import get_column_letter as L
 
@@ -31,6 +31,11 @@ def libro(titulo, subtitulo, ancho_cols, hoja="Formato", horizontal=True):
     wb = Workbook()
     ws = wb.active
     ws.title = hoja
+    banner(ws, titulo, subtitulo, ancho_cols, horizontal)
+    return wb, ws
+
+
+def banner(ws, titulo, subtitulo, ancho_cols, horizontal=True):
     n = len(ancho_cols)
     for i, w in enumerate(ancho_cols, 1):
         ws.column_dimensions[L(i)].width = w
@@ -78,7 +83,6 @@ def libro(titulo, subtitulo, ancho_cols, hoja="Formato", horizontal=True):
     ws.page_setup.fitToHeight = 0
     ws.sheet_properties.pageSetUpPr.fitToPage = True
     ws.print_options.horizontalCentered = True
-    return wb, ws
 
 
 def encabezado(ws, fila, textos, col=1):
@@ -125,6 +129,8 @@ def filas(ws, desde, hasta, ncols, formatos=None, formulas=None, col0=1):
             if c in formulas:
                 cel.value = formulas[c](r)
                 cel.fill = PatternFill("solid", fgColor=CALC)
+                if c == col0:
+                    cel.alignment = Alignment(horizontal="center")
             else:
                 cel.fill = PatternFill("solid", fgColor=INPUT)
             if c in formatos:
@@ -163,7 +169,27 @@ def firmas(ws, fila, etiquetas, ncols):
         x.font = Font(bold=True)
 
 
+def proteger(wb):
+    """Bloquea todo salvo las celdas de captura (relleno INPUT). Sin contraseña."""
+    for ws in wb.worksheets:
+        if ws.title in ("Tabla LFT", "Tasas"):
+            continue
+        for fila in ws.iter_rows():
+            for c in fila:
+                f = c.fill
+                if f and f.fill_type == "solid" and str(f.fgColor.rgb).endswith(INPUT):
+                    c.protection = Protection(locked=False)
+        ws.protection.sheet = True
+        ws.protection.objects = False      # permite insertar el logo
+        ws.protection.scenarios = False
+        ws.protection.formatColumns = False
+        ws.protection.formatRows = False
+        ws.protection.autoFilter = False
+        ws.protection.sort = False
+
+
 def guardar(wb, cat, nombre):
+    proteger(wb)
     d = os.path.join(OUT, cat)
     os.makedirs(d, exist_ok=True)
     wb.save(os.path.join(d, nombre + ".xlsx"))
@@ -226,6 +252,73 @@ def instrucciones(wb, titulo, pasos):
     wb.active = 0
 
 
+
+# ------------------------------------------------------------------ TABLERO (Resumen)
+from openpyxl.chart import BarChart, LineChart, PieChart, Reference
+from openpyxl.chart.label import DataLabelList
+
+
+def hoja_resumen(wb, titulo, subtitulo):
+    ws = wb.create_sheet("Resumen")
+    banner(ws, titulo, subtitulo, [2] + [15] * 8 + [2])
+    ws.sheet_properties.tabColor = GOLD
+    ws.page_setup.fitToHeight = 1
+    return ws
+
+
+def kpi(ws, col, etiqueta, formula, fmt=MXN, fila=4):
+    """Tarjeta de indicador de 2 columnas: etiqueta arriba, valor grande abajo."""
+    for r_, alto in ((fila, 20), (fila + 1, 36)):
+        ws.row_dimensions[r_].height = alto
+        ws.merge_cells(start_row=r_, start_column=col, end_row=r_, end_column=col + 1)
+    a = ws.cell(fila, col, etiqueta)
+    a.font = Font(size=9, bold=True, color=PETROL)
+    a.alignment = Alignment(horizontal="center", vertical="center")
+    b = ws.cell(fila + 1, col, formula)
+    b.font = Font(size=18, bold=True, color=COLOR)
+    b.number_format = fmt
+    b.alignment = Alignment(horizontal="center", vertical="center")
+    for r_ in (fila, fila + 1):
+        for c_ in (col, col + 1):
+            x = ws.cell(r_, c_)
+            x.fill = PatternFill("solid", fgColor=CLARO if r_ == fila else "FFFFFF")
+            x.border = Border(left=thin if c_ == col else None, right=thin if c_ == col + 1 else None,
+                              top=Side(style="medium", color=GOLD) if r_ == fila else None,
+                              bottom=thin if r_ == fila + 1 else None)
+
+
+def colorear(chart, colores=(COLOR, GOLD, PETROL, "8A97A3")):
+    for i, ser in enumerate(chart.series):
+        ser.graphicalProperties.solidFill = colores[i % len(colores)]
+        ser.graphicalProperties.line.solidFill = colores[i % len(colores)]
+
+
+def grafica_barras(titulo, horizontal=False, ancho=11.5, alto=7.2):
+    ch = BarChart()
+    ch.type = "bar" if horizontal else "col"
+    ch.title = titulo
+    ch.width, ch.height = ancho, alto
+    ch.legend.position = "b"
+    ch.y_axis.numFmt = '"$"#,##0'
+    ch.y_axis.majorGridlines = None
+    ch.x_axis.delete = False
+    ch.y_axis.delete = False
+    return ch
+
+
+def tabla_simple(ws, fila, col, encabezados, filas_, formatos=None):
+    encabezado(ws, fila, encabezados, col)
+    ws.row_dimensions[fila].height = 22
+    for i, fila_ in enumerate(filas_, 1):
+        for j, v in enumerate(fila_):
+            c = ws.cell(fila + i, col + j, v)
+            c.border = BORDE
+            if formatos and j in formatos:
+                c.number_format = formatos[j]
+            if j > 0:
+                c.fill = PatternFill("solid", fgColor=CALC)
+
+
 # ---------------------------------------------------------------- CONTABILIDAD
 def ingresos_gastos():
     wb, ws = libro("CONTROL DE INGRESOS Y GASTOS", "Registro diario de movimientos con saldo acumulado",
@@ -243,8 +336,33 @@ def ingresos_gastos():
                                "Insumos", "Impuestos", "Publicidad", "Transporte", "Otros gastos"])
     lista(ws, f"E{f0}:E{f1}", ["Efectivo", "Transferencia", "Tarjeta", "Cheque"])
     ws.freeze_panes = "A8"
+    rs = hoja_resumen(wb, "RESUMEN DE INGRESOS Y GASTOS", "Se actualiza solo con lo que captures en la hoja Formato")
+    kpi(rs, 2, "TOTAL INGRESOS", f"=Formato!F{f1+1}")
+    kpi(rs, 4, "TOTAL GASTOS", f"=Formato!G{f1+1}")
+    kpi(rs, 6, "SALDO FINAL", f"=Formato!H{f1+1}")
+    kpi(rs, 8, "MOVIMIENTOS", f'=SUMPRODUCT(--(((Formato!F{f0}:F{f1}<>"")+(Formato!G{f0}:G{f1}<>""))>0))', "0")
+    gastos = ["Nómina", "Renta", "Servicios (luz/agua/tel)", "Insumos", "Impuestos", "Publicidad", "Transporte", "Otros gastos"]
+    ingresos = ["Ventas", "Servicios", "Otros ingresos"]
+    tabla_simple(rs, 25, 2, ["Gasto por categoría", "Monto"],
+                 [[g, f"=SUMIF(Formato!$D${f0}:$D${f1},B{26+i},Formato!$G${f0}:$G${f1})"] for i, g in enumerate(gastos)], {1: MXN})
+    tabla_simple(rs, 25, 6, ["Ingreso por categoría", "Monto"],
+                 [[g, f"=SUMIF(Formato!$D${f0}:$D${f1},F{26+i},Formato!$F${f0}:$F${f1})"] for i, g in enumerate(ingresos)], {1: MXN})
+    rs.column_dimensions["B"].width = 24
+    rs.column_dimensions["F"].width = 22
+    g1 = grafica_barras("Gastos por categoría", horizontal=True)
+    g1.add_data(Reference(rs, min_col=3, min_row=25, max_row=33), titles_from_data=True)
+    g1.set_categories(Reference(rs, min_col=2, min_row=26, max_row=33))
+    g1.legend = None
+    colorear(g1)
+    rs.add_chart(g1, "B8")
+    g2 = grafica_barras("Ingresos por categoría", ancho=11.5)
+    g2.add_data(Reference(rs, min_col=7, min_row=25, max_row=28), titles_from_data=True)
+    g2.set_categories(Reference(rs, min_col=6, min_row=26, max_row=28))
+    g2.legend = None
+    colorear(g2, (PETROL,))
+    rs.add_chart(g2, "F8")
     instrucciones(wb, "Control de ingresos y gastos", [
-        "Captura el saldo inicial del periodo en la celda amarilla correspondiente.",
+        "Captura el saldo inicial del periodo en la celda de captura correspondiente.",
         "Registra cada movimiento: fecha, concepto, categoría (lista desplegable) y método de pago.",
         "Escribe el monto en la columna Ingreso o Gasto, nunca en ambas.",
         "El saldo acumulado y los totales se calculan solos.",
@@ -334,9 +452,36 @@ def flujo_efectivo():
             x.border = BORDE
     ws.cell(r, 14, f"=SUM(B{r}:M{r})").number_format = MXN
     ws.freeze_panes = "B8"
+    rs = hoja_resumen(wb, "RESUMEN DE FLUJO DE EFECTIVO", "Ingresos, egresos y saldo acumulado por mes")
+    kpi(rs, 2, "INGRESOS DEL AÑO", f"=Formato!N{ti}")
+    kpi(rs, 4, "EGRESOS DEL AÑO", f"=Formato!N{te}")
+    kpi(rs, 6, "FLUJO NETO", f"=Formato!N{r}")
+    kpi(rs, 8, "SALDO FINAL", f"=Formato!M{r+1}")
+    cats = Reference(ws, min_col=2, max_col=13, min_row=7)
+    g1 = grafica_barras("Ingresos vs. egresos por mes", ancho=23.5, alto=7.5)
+    for fila_ in (ti, te):
+        g1.add_data(Reference(ws, min_col=1, max_col=13, min_row=fila_), titles_from_data=True, from_rows=True)
+    g1.set_categories(cats)
+    colorear(g1, (PETROL, GOLD))
+    rs.add_chart(g1, "B8")
+    g2 = LineChart()
+    g2.title = "Saldo acumulado"
+    g2.width, g2.height = 23.5, 7.5
+    g2.add_data(Reference(ws, min_col=1, max_col=13, min_row=r + 1), titles_from_data=True, from_rows=True)
+    g2.set_categories(cats)
+    g2.legend = None
+    g2.y_axis.numFmt = '"$"#,##0'
+    g2.y_axis.majorGridlines = None
+    g2.x_axis.delete = False
+    g2.y_axis.delete = False
+    g2.series[0].graphicalProperties.line.solidFill = COLOR
+    g2.series[0].graphicalProperties.line.width = 32000
+    g2.series[0].smooth = False
+    g2.x_axis.tickLblPos = "low"
+    rs.add_chart(g2, "B24")
     instrucciones(wb, "Flujo de efectivo anual", [
         "Captura el saldo inicial del año.",
-        "Llena en amarillo los ingresos y egresos esperados (o reales) de cada mes.",
+        "Llena en las celdas de captura los ingresos y egresos esperados (o reales) de cada mes.",
         "Puedes renombrar los conceptos de la columna A según tu negocio.",
         "El flujo neto y el saldo acumulado se actualizan solos; un saldo negativo indica falta de liquidez."])
     guardar(wb, "1_Contabilidad_y_Finanzas", "03_Flujo_de_Efectivo_Anual")
@@ -371,6 +516,17 @@ def cuentas_por_cobrar():
         b.number_format = MXN
         b.border = BORDE
     ws.freeze_panes = "A7"
+    rs = hoja_resumen(wb, "RESUMEN DE COBRANZA", "Saldo, vencimientos y antigüedad de saldos")
+    kpi(rs, 2, "SALDO POR COBRAR", f"=Formato!I{f1+1}")
+    kpi(rs, 4, "SALDO VENCIDO", f'=SUMIF(Formato!K{f0}:K{f1},"Vencida",Formato!I{f0}:I{f1})')
+    kpi(rs, 6, "% VENCIDO", "=IFERROR(D5/B5,0)", "0.0%")
+    kpi(rs, 8, "FACTURAS CON SALDO", f'=COUNTIF(Formato!I{f0}:I{f1},">0")', "0")
+    g1 = grafica_barras("Antigüedad de saldos", ancho=23.5, alto=8.5)
+    g1.add_data(Reference(ws, min_col=3, min_row=r + 1, max_row=r + 5))
+    g1.set_categories(Reference(ws, min_col=2, min_row=r + 1, max_row=r + 5))
+    g1.legend = None
+    colorear(g1, (COLOR,))
+    rs.add_chart(g1, "B8")
     instrucciones(wb, "Cuentas por cobrar", [
         "Registra cada factura emitida con fecha, días de crédito e importe.",
         "Cuando recibas un pago, captura el acumulado en la columna Abonos.",
@@ -581,6 +737,30 @@ def inventario():
     ws.conditional_formatting.add(f"M{f0}:M{f1}", CellIsRule(operator="equal", formula=['"REABASTECER"'],
                                   fill=PatternFill("solid", bgColor="FFE699")))
     ws.freeze_panes = "D7"
+    rs = hoja_resumen(wb, "RESUMEN DE INVENTARIO", "Valor, existencias y alertas de reabasto")
+    kpi(rs, 2, "VALOR DEL INVENTARIO", f"=Formato!K{f1+1}")
+    kpi(rs, 4, "PRODUCTOS", f"=COUNTA(Formato!B{f0}:B{f1})", "0")
+    kpi(rs, 6, "POR REABASTECER", f'=COUNTIF(Formato!M{f0}:M{f1},"REABASTECER")', "0")
+    kpi(rs, 8, "SIN STOCK", f'=COUNTIF(Formato!M{f0}:M{f1},"SIN STOCK")', "0")
+    tabla_simple(rs, 25, 2, ["Estatus", "Productos"],
+                 [["OK", f'=COUNTIF(Formato!M{f0}:M{f1},"OK")'], ["REABASTECER", "=F5"], ["SIN STOCK", "=H5"]])
+    pie = PieChart()
+    pie.title = "Estatus del inventario"
+    pie.width, pie.height = 14, 8
+    pie.add_data(Reference(rs, min_col=3, min_row=25, max_row=28), titles_from_data=True)
+    pie.set_categories(Reference(rs, min_col=2, min_row=26, max_row=28))
+    pie.dataLabels = DataLabelList()
+    pie.dataLabels.showPercent = True
+    pie.dataLabels.showCatName = False
+    pie.dataLabels.showSerName = False
+    pie.dataLabels.showVal = False
+    pie.dataLabels.showLeaderLines = False
+    from openpyxl.chart.series import DataPoint
+    for i, col_ in enumerate((PETROL, GOLD, "B5483A")):
+        pt = DataPoint(idx=i)
+        pt.graphicalProperties.solidFill = col_
+        pie.series[0].dPt.append(pt)
+    rs.add_chart(pie, "B8")
     instrucciones(wb, "Control de inventario", [
         "Registra cada producto con su código, inventario inicial, costo y stock mínimo.",
         "Actualiza las columnas Entradas y Salidas con los totales del periodo.",
@@ -651,6 +831,10 @@ def orden_compra():
         c.fill = PatternFill("solid", fgColor=INPUT if n == "Descuento" else CLARO)
     ws.cell(r + 5, 1, "Observaciones:").font = Font(bold=True)
     ws.merge_cells(start_row=r + 6, start_column=1, end_row=r + 8, end_column=7)
+    for rr in range(r + 6, r + 9):
+        for cc in range(1, 8):
+            ws.cell(rr, cc).fill = PatternFill("solid", fgColor=INPUT)
+            ws.cell(rr, cc).border = BORDE
     firmas(ws, r + 11, ["Solicita", "Autoriza", "Proveedor (acuse)"], 7)
     instrucciones(wb, "Orden de compra", [
         "Llena los datos del proveedor, condiciones de pago y dirección de entrega.",
@@ -742,6 +926,10 @@ def cotizacion():
     ws.merge_cells(start_row=r + 6, start_column=1, end_row=r + 9, end_column=7)
     ws.cell(r + 6, 1, "• Precios en pesos mexicanos (MXN) más IVA, salvo indicación.\n• Forma de pago: \n• Tiempo de entrega: \n• Vigencia de la cotización: ")
     ws.cell(r + 6, 1).alignment = Alignment(wrap_text=True, vertical="top")
+    for rr in range(r + 6, r + 10):
+        for cc in range(1, 8):
+            ws.cell(rr, cc).fill = PatternFill("solid", fgColor=INPUT)
+            ws.cell(rr, cc).border = BORDE
     firmas(ws, r + 12, ["Atentamente", "Aceptación del cliente"], 7)
     instrucciones(wb, "Cotización", [
         "Escribe los datos de tu empresa y del cliente.",
@@ -874,6 +1062,20 @@ def presupuesto():
     from openpyxl.formatting.rule import CellIsRule
     ws.conditional_formatting.add(f"P8:P{r}", CellIsRule(operator="greaterThan", formula=["0"], font=Font(color="C00000", bold=True)))
     ws.freeze_panes = "B8"
+    rs = hoja_resumen(wb, "RESUMEN DEL PRESUPUESTO", "Presupuestado vs. real por concepto")
+    filas_p = [[c, f"=Formato!N{8 + 2 * i}", f"=Formato!O{8 + 2 * i}", f"=D{9 + i}-C{9 + i}",
+                f'=IF(C{9 + i}=0,"",D{9 + i}/C{9 + i})'] for i, c in enumerate(conceptos)]
+    tabla_simple(rs, 8, 2, ["Concepto", "Presupuesto", "Real", "Variación", "% ejec."], filas_p, {1: MXN, 2: MXN, 3: MXN, 4: "0%"})
+    rs.column_dimensions["B"].width = 26
+    kpi(rs, 2, "VENTAS PRESUPUESTADAS", "=C9")
+    kpi(rs, 4, "VENTAS REALES", "=D9")
+    kpi(rs, 6, "GASTO PRESUPUESTADO", "=SUM(C10:C18)")
+    kpi(rs, 8, "GASTO REAL", "=SUM(D10:D18)")
+    g1 = grafica_barras("Presupuesto vs. real por concepto", ancho=23.5, alto=8.5)
+    g1.add_data(Reference(rs, min_col=3, max_col=4, min_row=8, max_row=18), titles_from_data=True)
+    g1.set_categories(Reference(rs, min_col=2, min_row=9, max_row=18))
+    colorear(g1, (COLOR, GOLD))
+    rs.add_chart(g1, "B21")
     instrucciones(wb, "Presupuesto anual", [
         "Por cada concepto hay dos renglones: Presup. (lo planeado) y Real (lo ejercido).",
         "Captura mes a mes. La columna Variación muestra Real - Presupuesto del primer renglón de cada concepto.",
