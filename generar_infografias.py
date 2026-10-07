@@ -32,7 +32,8 @@ body{font-family:Arial,'Liberation Sans',Helvetica,sans-serif;width:%W%px;height
 .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:%GAP1%px}
 .wm{font-weight:800;letter-spacing:.14em;font-size:%WM%px;color:var(--hl);display:flex;align-items:center;gap:10px}
 .wm:before{content:"";width:8px;height:28px;background:var(--hl)}
-.logo{height:40px}
+.plate{background:#fff;border-radius:14px;padding:8px 18px;display:inline-flex;align-items:center;box-shadow:0 3px 14px rgba(0,0,0,.28)}
+.logo{height:%LOGO%px;width:auto;display:block}
 .kick{font-size:%KK%px;font-weight:800;letter-spacing:.14em;color:%ACCT%;text-transform:uppercase}
 h1{font-size:%H1%px;line-height:1.07;font-weight:800;letter-spacing:-.01em;color:var(--tx)}
 h1 em{font-style:normal;color:var(--hl)}
@@ -102,7 +103,7 @@ def t(x, y, s, size=26, w=700, fill="var(--tx)", anchor="start", extra=""):
 # --------------------------------------------------------------------------- marco común
 def marca_html():
     if LOGO_B64:
-        return f'<img class="logo" src="{LOGO_B64}" alt="{MARCA}">'
+        return f'<span class="plate"><img class="logo" src="{LOGO_B64}" alt="{MARCA}"></span>'
     return f'<div class="wm">{MARCA}</div>'
 
 
@@ -146,7 +147,7 @@ def pagina(fmt, d):
     m = M[fmt]
     acc = d["acento"]
     css = (CSS.replace("%W%", str(w)).replace("%H%", str(h)).replace("%ACC%", acc).replace("%ACCT%", (TEXTO_CLARO.get(acc, acc) if d["tema"] == "light" else acc)).replace("%ONACC%", sobre(acc)).replace("%TOP%", str(m["top"])).replace("%PX%", str(m["px"]))
-           .replace("%PB%", str(m["cta"] + m["bottom"] + 24)).replace("%BOT%", str(m["bottom"])).replace("%GAP1%", "26" if fmt != "1920" else "46").replace("%WM%", "24" if fmt != "1920" else "30")
+           .replace("%PB%", str(m["cta"] + m["bottom"] + 24)).replace("%BOT%", str(m["bottom"])).replace("%GAP1%", "26" if fmt != "1920" else "46").replace("%WM%", "24" if fmt != "1920" else "30").replace("%LOGO%", {"1350": "62", "1080": "58", "1920": "84"}[fmt])
            .replace("%KK%", "19" if fmt != "1920" else "25").replace("%H1%", str(m["h1"])).replace("%GAP2%", "20" if fmt != "1920" else "30")
            .replace("%META%", str(m["meta"])).replace("%MB%", "17" if fmt != "1920" else "22").replace("%GAP3%", "10" if fmt != "1920" else "18")
            .replace("%CHIP%", str(m["chip"])).replace("%GAP4%", "10").replace("%CTA%", str(m["cta"])).replace("%CP%", "20" if fmt != "1920" else "34")

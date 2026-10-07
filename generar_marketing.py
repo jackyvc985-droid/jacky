@@ -27,7 +27,8 @@ body{font-family:Arial,'Liberation Sans',Helvetica,sans-serif;color:var(--tx);ba
 .wm{font-weight:800;letter-spacing:.14em;font-size:15px;color:var(--gold);display:flex;align-items:center;gap:10px}
 .wm:before{content:"";width:8px;height:26px;background:var(--gold);display:inline-block}
 .light .wm{color:var(--navy)}
-.logo{height:34px;width:auto;object-fit:contain}
+.logo{height:46px;width:auto;object-fit:contain;display:block}
+.plate{background:#fff;border-radius:12px;padding:6px 14px;display:inline-flex;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.25)}
 .kicker{font-size:14px;font-weight:800;letter-spacing:.16em;color:var(--gold);text-transform:uppercase}
 .light .kicker{color:var(--teal)}
 h1{font-size:68px;line-height:1.04;font-weight:800;letter-spacing:-.01em}
@@ -64,7 +65,7 @@ if os.path.exists(LOGO):
 
 def marca():
     if LOGO_B64:
-        return f'<img class="logo" src="{LOGO_B64}" alt="{ETIQUETA}">'
+        return f'<span class="plate"><img class="logo" src="{LOGO_B64}" alt="{ETIQUETA}"></span>'
     return f'<div class="wm">{ETIQUETA}</div>'
 
 

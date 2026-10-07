@@ -1,5 +1,4 @@
-Material de ventas SIN marca por defecto (los productos se venden a terceros).
-Si quieres personalizar las piezas de ventas con TU marca:
-1) assets/logo.png (opcional)  2) assets/config_marca.json: "marca", "correo", "telefono", "web"
-3) python3 generar_marketing.py
-Los formatos Excel/Word del paquete NO llevan marca: el comprador inserta su propio logo en el recuadro.
+LOGO (assets/logo.png)
+- Se usa SOLO en el material de marketing (infografías y presentación en marketing/).
+- Los formatos de venta (Excel y Word en plantillas/ y ejemplos/) NO llevan logo: solo un recuadro "INSERTE SU LOGO" para el comprador.
+- Original recortado: assets/logo_original.png. Datos de contacto: assets/config_marca.json.

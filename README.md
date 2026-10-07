@@ -1,6 +1,6 @@
 # Papeles de trabajo administrativos (México)
 
-45 formatos editables listos para vender: 22 libros de Excel y 23 documentos de Word. Sin marca ni logotipo (producto para venta a terceros). Guía de diseño permanente en `.claude/skills/diseno-corporativo-ejecutivo/SKILL.md`. Paleta: azul marino, azul turquesa, coral, dorado y gris ejecutivo;
+45 formatos editables listos para vender: 22 libros de Excel y 23 documentos de Word. Sin marca ni logotipo (producto para venta a terceros); el logo de Grupo Canville aparece solo en el material de marketing (infografías y presentación). Guía de diseño permanente en `.claude/skills/diseno-corporativo-ejecutivo/SKILL.md`. Paleta: azul marino, azul turquesa, coral, dorado y gris ejecutivo;
 fuente Arial; títulos, encabezados y etiquetas en mayúsculas.
 
 Cada Excel incluye: PORTADA con contenido e instrucciones, FORMATO con fórmulas y listas desplegables, tablero RESUMEN con gráficas (en 14 de ellos),
