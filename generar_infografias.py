@@ -18,9 +18,9 @@ LEMA = CFG.get("lema", "")
 
 # métricas por formato (px): margen lateral, margen superior, tipografías y alto de la barra de acción
 M = {
-    "1350": dict(px=64, top=54, h1=62, meta=26, body=25, cta=250, bottom=0, qr=128, btn=27, ct=22, chip=21),
+    "1350": dict(px=64, top=54, h1=62, meta=26, body=25, cta=250, bottom=0, qr=104, btn=27, ct=22, chip=21),
     "1080": dict(px=56, top=42, h1=52, meta=22, body=22, cta=214, bottom=0, qr=0, btn=25, ct=20, chip=21),
-    "1920": dict(px=64, top=150, h1=84, meta=32, body=31, cta=330, bottom=165, qr=160, btn=34, ct=28, chip=27),
+    "1920": dict(px=64, top=150, h1=84, meta=32, body=31, cta=380, bottom=165, qr=112, btn=34, ct=28, chip=27),
 }
 
 CSS = """
@@ -54,6 +54,8 @@ h1 em{font-style:normal;color:var(--hl)}
 .cta .note{font-size:%CT%px;color:#E3EBF2;margin-top:8px}
 .cta .ct{font-size:%CT%px;font-weight:700;color:#fff;line-height:1.5}
 .cta .ct span{color:#E69F00;margin:0 8px}
+.qrw{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;width:%QRW%px;text-align:center}.qrw small{font-size:20px;line-height:1.15;color:#E3EBF2}
+.w:after{content:'';position:absolute;left:0;right:0;bottom:0;height:%BOT%px;background:#051526}
 .qr{width:%QR%px;height:%QR%px;border-radius:12px;background:#fff;padding:6px;flex:none}
 .icb{width:64px;height:64px;border-radius:16px;display:flex;align-items:center;justify-content:center;flex:none;background:var(--accent);color:%ONACC%}
 .icb svg,.ic svg{width:60%;height:60%;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -152,7 +154,7 @@ def pagina(fmt, d):
            .replace("%META%", str(m["meta"])).replace("%MB%", "17" if fmt != "1920" else "22").replace("%GAP3%", "10" if fmt != "1920" else "18")
            .replace("%CHIP%", str(m["chip"])).replace("%GAP4%", "10").replace("%CTA%", str(m["cta"])).replace("%CP%", "20" if fmt != "1920" else "34")
            .replace("%CG%", "12" if fmt != "1920" else "20").replace("%BTN%", str(m["btn"])).replace("%BP%", "16" if fmt != "1920" else "26")
-           .replace("%CT%", str(m["ct"])).replace("%QR%", str(m["qr"] or 120)))
+           .replace("%CT%", str(m["ct"])).replace("%QR%", str(m["qr"] or 120)).replace("%QRW%", str(max(150, (m["qr"] or 120) + 30))))
     # bloque 'meta': riesgo + lo que hacemos (en 1080 solo el riesgo y una línea)
     meta = f'<div><b>RIESGO</b>{d["riesgo"]}</div>'
     if fmt == "1350":
@@ -164,12 +166,12 @@ def pagina(fmt, d):
     aut = ""
     if fmt == "1350":
         aut = '<div class="auth">' + "".join(f"<span>{a}</span>" for a in AUTORIDAD) + "</div>"
-    contacto_linea = f'{CFG.get("correo", "")}<span>·</span>{CFG.get("correo_admin", "")}<span>·</span>{CFG.get("telefono", "")}'
+    contacto_linea = f'{CFG.get("correo", "")}<span>·</span>WhatsApp {CFG.get("telefono", "")}'
     if fmt == "1920":
-        contacto_html = f'<div class="ct">{CFG.get("correo", "")}<br>{CFG.get("correo_admin", "")}<br>{CFG.get("telefono", "")}</div>'
+        contacto_html = f'<div class="ct">{CFG.get("correo", "")}<br>WhatsApp {CFG.get("telefono", "")}</div>'
     else:
         contacto_html = f'<div class="ct">{contacto_linea}</div>'
-    qr_html = f'<img class="qr" src="{QR}">' if (QR and m["qr"]) else ""
+    qr_html = f'<div class="qrw"><img class="qr" src="{QR}"><small>Escanea para escribir por WhatsApp</small></div>' if (QR and m["qr"]) else ""
     cta = (f'<div class="cta"><div class="row"><div><div class="btn">{d["cta"]} →</div><div class="note">Respuesta inicial para conocer tu operación.</div></div>{qr_html if fmt == "1350" else ""}</div>'
            f'{"<div class=row>" + contacto_html + qr_html + "</div>" if fmt == "1920" else contacto_html}</div>')
     return (f'<!doctype html><html lang="es"><head><meta charset="utf-8"><style>{css}</style></head><body><div class="w {d["tema"]}">'
@@ -322,10 +324,10 @@ def vis_antes(fmt):
 
 
 def vis_piramide(fmt):
-    niv = [("REPORTE A DIRECCIÓN", "Avance, riesgos y decisiones", GOLD, "#0B2A4A"), ("ESTIMACIONES Y FACTURACIÓN", "Avance de obra cobrado a tiempo", TEAL, "#fff"),
-           ("COMPRAS Y CONTRATISTAS", "Materiales, subcontratos y cambios", BLUE, "#fff"), ("EXPEDIENTE Y EVIDENCIA", "Contratos, fotos, actas y cierres", "#0B2A4A", "#fff")]
+    niv = [("4 · DIRECCIÓN", "Riesgos, decisiones y cierre", GOLD, "#0B2A4A"), ("3 · CONTROL FINANCIERO", "Facturación, pagos y conciliación", TEAL, "#fff"),
+           ("2 · EJECUCIÓN", "Compras, contratistas, avances y cambios", BLUE, "#fff"), ("1 · BASE DOCUMENTAL", "Contratos, órdenes, estimaciones y evidencias", "#2E5C8A", "#fff")]
     s = '<svg viewBox="0 0 1000 556" preserveAspectRatio="xMidYMid meet">'
-    y, apex, base, alto = 4, 380, 980, 130
+    y, apex, base, alto = 4, 440, 980, 130
     for i, (a_, b_, c, tc) in enumerate(niv):
         w1 = apex + (base - apex) * i / 4
         w2 = apex + (base - apex) * (i + 1) / 4
@@ -398,7 +400,7 @@ PIEZAS = [
          benef=["Acta firmada", "Cifras conciliadas", "Expediente final"], cta="Hablemos de tu proyecto",
          leyenda="Un proyecto no termina al entregar: termina al cerrar bien. Acta firmada, cifras conciliadas, pendientes en cero y expediente completo."),
     dict(id="09_Construccion_control_de_obra", tema="dark", acento=GOLD, kicker="Para constructoras", visual=vis_piramide,
-         h1={"1350": "Una obra bien construida necesita una <em>administración</em> bien documentada.", "1080": "Obra bien construida, <em>administración</em> bien documentada.", "1920": "Tu obra necesita <em>expediente</em>."},
+         h1={"1350": "Una obra se controla desde el <em>expediente</em>, no solo desde el avance físico.", "1080": "Una obra se controla desde el <em>expediente</em>.", "1920": "Tu obra se controla desde el <em>expediente</em>."},
          riesgo="estimaciones sin cobrar, contratistas sin liquidar y cierres sin respaldo.", hacemos="ordenamos compras, estimaciones, facturación y expediente de obra.",
          benef=["Estimaciones al día", "Contratistas en orden", "Cierre documentado"], cta="Revisa el control administrativo de tu obra",
          leyenda="Para constructoras: control de compras, contratistas, estimaciones, facturación y expediente de obra. Una obra bien construida necesita una administración bien documentada."),
