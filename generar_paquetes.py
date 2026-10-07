@@ -256,17 +256,21 @@ def portadas():
 
 
 def entrega_completa():
-    """Un solo ZIP con todo: plantillas, ejemplos, portadas de venta y vistas previas."""
-    destino = os.path.join(ZIPS, "Entrega_Completa.zip")
-    with zipfile.ZipFile(destino, "w", zipfile.ZIP_DEFLATED) as z:
-        for carpeta, nombre in (("plantillas", "1_Plantillas_en_blanco"), ("ejemplos", "2_Ejemplos_con_datos"),
-                                ("portadas", "3_Portadas_por_coleccion"), ("portadas_productos", "4_Portadas_por_producto"),
-                                ("vistas_previas", "5_Vistas_previas"), ("marketing", "6_Material_de_ventas")):
-            base = os.path.join(RAIZ, carpeta)
-            for d_, _, fs in os.walk(base):
-                for f in fs:
-                    ruta = os.path.join(d_, f)
-                    z.write(ruta, os.path.join(nombre, os.path.relpath(ruta, base)))
+    """Tres ZIP (cada uno < 30 MB): formatos, imágenes de venta y material de marketing. Se borra el ZIP único anterior."""
+    viejo = os.path.join(ZIPS, "Entrega_Completa.zip")
+    if os.path.exists(viejo):
+        os.remove(viejo)
+    grupos = {"Entrega_1_Formatos.zip": (("plantillas", "1_Plantillas_en_blanco"), ("ejemplos", "2_Ejemplos_con_datos")),
+              "Entrega_2_Imagenes_de_venta.zip": (("portadas", "Portadas_por_coleccion"), ("portadas_productos", "Portadas_por_producto"), ("vistas_previas", "Vistas_previas")),
+              "Entrega_3_Marketing.zip": (("marketing", "Presentacion_infografias_y_mensajes"),)}
+    for nombre_zip, carpetas in grupos.items():
+        with zipfile.ZipFile(os.path.join(ZIPS, nombre_zip), "w", zipfile.ZIP_DEFLATED) as z:
+            for carpeta, nombre in carpetas:
+                base = os.path.join(RAIZ, carpeta)
+                for d_, _, fs in os.walk(base):
+                    for f in fs:
+                        ruta = os.path.join(d_, f)
+                        z.write(ruta, os.path.join(nombre, os.path.relpath(ruta, base)))
 
 
 def zips():

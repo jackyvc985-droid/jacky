@@ -24,7 +24,7 @@ Material para la tienda y ventas:
 - `portadas_productos/` – una portada de venta por producto (34 + 4).
 - `vistas_previas/` – capturas (PNG) de cada formato con datos de ejemplo; `_portada` y `_resumen` cuando aplica.
 - `portadas/` – imagen cuadrada 1200x1200 por categoría y del paquete completo con capturas reales (marca configurable en `generar_paquetes.py`).
-- `paquetes_zip/` – un ZIP por categoría y `Paquete_Completo.zip`.
+- `paquetes_zip/` – un ZIP por categoría, `Paquete_Completo.zip` (formatos + ejemplos) y tres entregas: `Entrega_1_Formatos`, `Entrega_2_Imagenes_de_venta` y `Entrega_3_Marketing`.
 
 Regenerar todo (requiere `openpyxl`, `python-docx`, `Pillow`, LibreOffice y `pdftoppm`):
 
