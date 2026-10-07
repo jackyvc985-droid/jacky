@@ -18,16 +18,16 @@ LEMA = CFG.get("lema", "")
 
 # métricas por formato (px): margen lateral, margen superior, tipografías y alto de la barra de acción
 M = {
-    "1350": dict(px=64, top=54, h1=62, meta=26, body=25, cta=250, bottom=0, qr=104, btn=27, ct=22, chip=21),
+    "1350": dict(px=64, top=54, h1=62, meta=26, body=25, cta=210, bottom=0, qr=96, btn=27, ct=22, chip=21),
     "1080": dict(px=56, top=42, h1=52, meta=22, body=22, cta=214, bottom=0, qr=0, btn=25, ct=20, chip=21),
-    "1920": dict(px=64, top=150, h1=84, meta=32, body=31, cta=380, bottom=165, qr=112, btn=34, ct=28, chip=27),
+    "1920": dict(px=64, top=150, h1=84, meta=32, body=31, cta=370, bottom=100, qr=112, btn=34, ct=28, chip=27),
 }
 
 CSS = """
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:Arial,'Liberation Sans',Helvetica,sans-serif;width:%W%px;height:%H%px;overflow:hidden}
 .dark{--bg1:#071d35;--bg2:#0B2A4A;--bg3:#134a6c;--tx:#ffffff;--tx2:#E3EBF2;--line:rgba(255,255,255,.28);--card:rgba(255,255,255,.10);--accent:%ACC%;--hl:#E69F00}
-.light{--bg1:#F6F8FB;--bg2:#EEF2F6;--bg3:#E4EBF2;--tx:#0B2A4A;--tx2:#33475A;--line:rgba(11,42,74,.25);--card:#ffffff;--accent:%ACC%;--hl:#8A5E00}
+.light{--bg1:#FFFFFF;--bg2:#F4F7FA;--bg3:#E9EFF5;--tx:#0B2A4A;--tx2:#33475A;--line:rgba(11,42,74,.25);--card:#ffffff;--accent:%ACC%;--hl:#8A5E00}
 .w{width:%W%px;height:%H%px;position:relative;display:flex;flex-direction:column;padding:%TOP%px %PX%px %PB%px;background:linear-gradient(160deg,var(--bg1) 0%,var(--bg2) 55%,var(--bg3) 100%);color:var(--tx);overflow:hidden}
 .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:%GAP1%px}
 .wm{font-weight:800;letter-spacing:.14em;font-size:%WM%px;color:var(--hl);display:flex;align-items:center;gap:10px}
@@ -52,7 +52,7 @@ h1 em{font-style:normal;color:var(--hl)}
 .cta .row{display:flex;align-items:center;justify-content:space-between;gap:24px}
 .btn{background:#E69F00;color:#0B2A4A;font-weight:800;font-size:%BTN%px;line-height:1.15;padding:%BP%px 34px;border-radius:999px}
 .cta .note{font-size:%CT%px;color:#E3EBF2;margin-top:8px}
-.cta .ct{font-size:%CT%px;font-weight:700;color:#fff;line-height:1.5}
+.cta .ct{font-size:%CT%px;font-weight:700;color:#fff;line-height:1.5;margin-top:10px}
 .cta .ct span{color:#E69F00;margin:0 8px}
 .qrw{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;width:%QRW%px;text-align:center}.qrw small{font-size:20px;line-height:1.15;color:#E3EBF2}
 .w:after{content:'';position:absolute;left:0;right:0;bottom:0;height:%BOT%px;background:#051526}
@@ -105,7 +105,7 @@ def t(x, y, s, size=26, w=700, fill="var(--tx)", anchor="start", extra=""):
 # --------------------------------------------------------------------------- marco común
 def marca_html():
     if LOGO_B64:
-        return f'<span class="plate"><img class="logo" src="{LOGO_B64}" alt="{MARCA}"></span>'
+        return f'<img class="logo" src="{LOGO_B64}" alt="{MARCA}">'
     return f'<div class="wm">{MARCA}</div>'
 
 
@@ -149,7 +149,7 @@ def pagina(fmt, d):
     m = M[fmt]
     acc = d["acento"]
     css = (CSS.replace("%W%", str(w)).replace("%H%", str(h)).replace("%ACC%", acc).replace("%ACCT%", (TEXTO_CLARO.get(acc, acc) if d["tema"] == "light" else acc)).replace("%ONACC%", sobre(acc)).replace("%TOP%", str(m["top"])).replace("%PX%", str(m["px"]))
-           .replace("%PB%", str(m["cta"] + m["bottom"] + 24)).replace("%BOT%", str(m["bottom"])).replace("%GAP1%", "26" if fmt != "1920" else "46").replace("%WM%", "24" if fmt != "1920" else "30").replace("%LOGO%", {"1350": "62", "1080": "58", "1920": "84"}[fmt])
+           .replace("%PB%", str(m["cta"] + m["bottom"] + 24)).replace("%BOT%", str(m["bottom"])).replace("%GAP1%", "26" if fmt != "1920" else "46").replace("%WM%", "24" if fmt != "1920" else "30").replace("%LOGO%", {"1350": "80", "1080": "74", "1920": "104"}[fmt])
            .replace("%KK%", "19" if fmt != "1920" else "25").replace("%H1%", str(m["h1"])).replace("%GAP2%", "20" if fmt != "1920" else "30")
            .replace("%META%", str(m["meta"])).replace("%MB%", "17" if fmt != "1920" else "22").replace("%GAP3%", "10" if fmt != "1920" else "18")
            .replace("%CHIP%", str(m["chip"])).replace("%GAP4%", "10").replace("%CTA%", str(m["cta"])).replace("%CP%", "20" if fmt != "1920" else "34")
@@ -172,8 +172,11 @@ def pagina(fmt, d):
     else:
         contacto_html = f'<div class="ct">{contacto_linea}</div>'
     qr_html = f'<div class="qrw"><img class="qr" src="{QR}"><small>Escanea para escribir por WhatsApp</small></div>' if (QR and m["qr"]) else ""
-    cta = (f'<div class="cta"><div class="row"><div><div class="btn">{d["cta"]} →</div><div class="note">Respuesta inicial para conocer tu operación.</div></div>{qr_html if fmt == "1350" else ""}</div>'
-           f'{"<div class=row>" + contacto_html + qr_html + "</div>" if fmt == "1920" else contacto_html}</div>')
+    if fmt == "1350":
+        cta = (f'<div class="cta"><div class="row"><div><div class="btn">{d["cta"]} →</div><div class="note">Respuesta inicial para conocer tu operación.</div>{contacto_html}</div>{qr_html}</div></div>')
+    else:
+        cta = (f'<div class="cta"><div class="row"><div><div class="btn">{d["cta"]} →</div><div class="note">Respuesta inicial para conocer tu operación.</div></div>{qr_html if fmt == "1920" and False else ""}</div>'
+               f'{"<div class=row>" + contacto_html + qr_html + "</div>" if fmt == "1920" else contacto_html}</div>')
     return (f'<!doctype html><html lang="es"><head><meta charset="utf-8"><style>{css}</style></head><body><div class="w {d["tema"]}">'
             f'<div class="top">{marca_html()}<span class="kick">{d["kicker"]}</span></div><h1>{d["h1"][fmt]}</h1><div class="meta">{meta}</div>'
             f'<div class="vis">{d["visual"](fmt)}</div>{ben}{aut}{cta}</div>'
@@ -238,7 +241,7 @@ def vis_linea(fmt):
         f'<div style="font-size:{29 if fmt=="1350" else 24}px;font-weight:800;line-height:1.12;margin-top:6px">{b}</div>'
         f'{"<div style=font-size:22px;color:var(--tx2);margin-top:8px;line-height:1.25>" + d + "</div>" if fmt == "1350" else ""}</div>'
         for a, b, d, i, c in pasos)
-    banda = ('<div style="margin-top:26px;background:var(--hl);color:#0B2A4A;border-radius:14px;padding:18px 24px;font-size:27px;font-weight:800;text-align:center">'
+    banda = ('<div style="margin-top:26px;background:#E69F00;color:#0B2A4A;border-radius:14px;padding:18px 24px;font-size:27px;font-weight:800;text-align:center">'
              'De información dispersa a una operación con seguimiento semanal.</div>') if fmt == "1350" else ""
     return (f'<div style="width:100%"><div style="position:relative"><div style="position:absolute;left:6%;right:6%;top:{47 if fmt=="1350" else 38}px;height:6px;background:linear-gradient(90deg,var(--accent),var(--hl),#E4572E)"></div>'
             f'<div style="display:flex;position:relative">{cols}</div></div>{banda}</div>')
@@ -359,7 +362,7 @@ def vis_matriz(fmt):
 
 
 PIEZAS = [
-    dict(id="01_Operacion_bajo_control", tema="dark", acento=GOLD, kicker="Control operativo", visual=vis_ciclo,
+    dict(id="01_Operacion_bajo_control", tema="light", acento=GOLD, kicker="Control operativo", visual=vis_ciclo,
          h1={"1350": "Si tu operación depende de <em>recordatorios</em>, ya necesitas un <em>sistema de control</em>.", "1080": "Si tu operación depende de recordatorios, necesitas un <em>sistema de control</em>.", "1920": "¿Tu operación depende de <em>recordatorios</em>?"},
          riesgo="pendientes que nadie atiende hasta que se vuelven problema.", hacemos="ordenamos, planeamos, ejecutamos y cerramos con evidencia.",
          benef=["Dueño por pendiente", "Fecha y evidencia", "Siguiente acción"], cta="Agenda un diagnóstico de control operativo",
@@ -369,7 +372,7 @@ PIEZAS = [
          riesgo="lo que se factura y no se cobra se convierte en riesgo.", hacemos="damos seguimiento a cada factura hasta su conciliación.",
          benef=["Cartera visible", "Compromisos de pago", "Bancos conciliados"], cta="Solicita una revisión de tu cartera y cobranza",
          leyenda="Facturar no es cobrar. De la factura emitida a la conciliación: seguimiento, compromiso de pago y aplicación. Solicita una revisión de tu cartera y cobranza."),
-    dict(id="03_Plan_de_30_dias", tema="dark", acento=TEAL, kicker="Implementación en 30 días", visual=vis_linea,
+    dict(id="03_Plan_de_30_dias", tema="light", acento=TEAL, kicker="Implementación en 30 días", visual=vis_linea,
          h1={"1350": "<em>30 días</em> para saber qué está pendiente, quién lo atiende y cómo se cierra.", "1080": "<em>30 días</em> para saber qué está pendiente y quién lo atiende.", "1920": "<em>30 días</em> para saber qué pasa en tu operación."},
          riesgo="seguir operando con información dispersa y sin responsables.", hacemos="te acompañamos semana a semana hasta el primer reporte.",
          benef=["Prioridades claras", "Responsable por tarea", "Reporte semanal"], cta="Inicia tu diagnóstico administrativo",
@@ -379,7 +382,7 @@ PIEZAS = [
          riesgo="diferencias de pago, recibos faltantes y observaciones del IMSS.", hacemos="validamos entradas, controlamos el cálculo y archivamos la evidencia.",
          benef=["Incidencias validadas", "Recibos CFDI", "Evidencia por periodo"], cta="Identifica tus pendientes críticos de nómina",
          leyenda="Una nómina sin evidencia es un riesgo laboral. Entradas validadas, proceso controlado y resultados documentados, periodo por periodo."),
-    dict(id="05_Fiscal_e_IMSS", tema="dark", acento=GOLD, kicker="Fiscal e IMSS", visual=vis_checklist,
+    dict(id="05_Fiscal_e_IMSS", tema="light", acento=GOLD, kicker="Fiscal e IMSS", visual=vis_checklist,
          h1={"1350": "Cumplir no es presentar a tiempo: es poder <em>demostrarlo</em>.", "1080": "Cumplir es presentar a tiempo y poder <em>demostrarlo</em>.", "1920": "Cumplir es poder <em>demostrarlo</em>."},
          riesgo="multas, recargos y revisiones sin expediente que te respalde.", hacemos="llevamos el calendario, los acuses y el expediente por mes.",
          benef=["Obligaciones con dueño", "Acuses a la mano", "Estado visible"], cta="Evalúa el control documental de tu empresa",
@@ -389,7 +392,7 @@ PIEZAS = [
          riesgo="compras sin respaldo y sobrecostos que aparecen al final.", hacemos="definimos la ruta de aprobación y concilias orden, entrada y factura.",
          benef=["Quién autoriza", "Tres cotizaciones", "Conciliación 3 vías"], cta="Ordena tu administración en 30 días",
          leyenda="Compras y proyectos bajo control: requisición, comparativo, autorización, orden, recepción y conciliación de tres vías."),
-    dict(id="07_Reporte_para_direccion", tema="dark", acento=TEAL, kicker="Reporte para dirección", visual=vis_tablero,
+    dict(id="07_Reporte_para_direccion", tema="light", acento=TEAL, kicker="Reporte para dirección", visual=vis_tablero,
          h1={"1350": "Dirección no necesita más datos: necesita saber <em>qué decidir hoy</em>.", "1080": "Dirección necesita saber <em>qué decidir hoy</em>.", "1920": "¿Qué debe <em>decidir</em> dirección hoy?"},
          riesgo="decidir tarde o a ciegas porque la información llega dispersa.", hacemos="convertimos tu operación en un tablero semanal con semáforos.",
          benef=["Pendientes críticos", "Riesgos con dueño", "Decisiones con fecha"], cta="Recibe una ruta de control para tu empresa",
@@ -399,7 +402,7 @@ PIEZAS = [
          riesgo="proyectos entregados que siguen abiertos en cifras y documentos.", hacemos="llevamos el cierre administrativo con evidencia y conciliación.",
          benef=["Acta firmada", "Cifras conciliadas", "Expediente final"], cta="Hablemos de tu proyecto",
          leyenda="Un proyecto no termina al entregar: termina al cerrar bien. Acta firmada, cifras conciliadas, pendientes en cero y expediente completo."),
-    dict(id="09_Construccion_control_de_obra", tema="dark", acento=GOLD, kicker="Para constructoras", visual=vis_piramide,
+    dict(id="09_Construccion_control_de_obra", tema="light", acento=GOLD, kicker="Para constructoras", visual=vis_piramide,
          h1={"1350": "Una obra se controla desde el <em>expediente</em>, no solo desde el avance físico.", "1080": "Una obra se controla desde el <em>expediente</em>.", "1920": "Tu obra se controla desde el <em>expediente</em>."},
          riesgo="estimaciones sin cobrar, contratistas sin liquidar y cierres sin respaldo.", hacemos="ordenamos compras, estimaciones, facturación y expediente de obra.",
          benef=["Estimaciones al día", "Contratistas en orden", "Cierre documentado"], cta="Revisa el control administrativo de tu obra",
