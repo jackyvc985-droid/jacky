@@ -9,7 +9,7 @@ Regla de fondo: **nada de formatos planos.** Cada pieza debe parecer hecha por u
 
 ## Reglas fijas de este proyecto (tienen prioridad)
 
-1. **Producto para venta a terceros: sin logo ni nombre de marca del autor.** Solo un recuadro "INSERTE SU LOGO" para que el comprador ponga el suyo. La marca es opcional y se configura en `assets/config_marca.json` / `assets/logo.png` (vacío por defecto). Si el usuario pide una pieza con su propia marca (por ejemplo, su deck comercial), activarla solo para esa pieza.
+1. **Los FORMATOS (Excel/Word en `plantillas/`) se venden a terceros: sin logo ni nombre de marca del autor.** Solo un recuadro "INSERTE SU LOGO" para que el comprador ponga el suyo. La marca es opcional y se configura en `assets/config_marca.json` / `assets/logo.png` (vacío por defecto). El MATERIAL DE VENTAS del autor (`marketing/`: presentación, infografías, mensajes) sí lleva la marca y los contactos que el usuario dio en `assets/config_marca.json` (Grupo Canville · ventas@grupocanville.com · administracion@grupocanville.com · 442 286 0954). Si no hay `assets/logo.png`, se usa el nombre en texto; pedir el logo oficial.
 2. **Fuente: Arial** en Excel y Word (universal en Windows, Mac y Google). Imágenes y PDF se renderizan con Liberation Sans (misma métrica). Evitar fuentes de Office poco comunes (p. ej. Abadi) y fuentes que el comprador quizá no tenga.
 3. **Mayúsculas** en títulos, encabezados, etiquetas y nombres de hoja (PORTADA, FORMATO, RESUMEN, CATÁLOGOS, AYUDA...).
 4. **Paleta de estructura:** azul marino `#0B2A4A`, azul turquesa `#0E7C8B`, coral `#E8604C`, dorado `#C9A227`, gris ejecutivo `#EEF2F5` y blanco.
@@ -73,3 +73,13 @@ Versión para impresión y versión para pantalla; legible en computadora, celul
 ## Cómo se genera (scripts del repositorio)
 
 `generar_plantillas.py` (Excel) · `generar_documentos_word.py` (Word) · `generar_ejemplos.py` (versiones con datos) · `generar_paquetes.py` (vistas previas, portadas, ZIP) · `generar_marketing.py` (presentación, infografías, mensajes). Contenido de ayuda en `contenido.py`.
+
+
+## Reglas de la campaña de infografías (`generar_infografias.py`)
+
+- **Diez piezas, una composición distinta por tema** (nunca una cuadrícula de tarjetas repetida): ciclo, embudo, línea de tiempo, entrada-proceso-resultado, checklist con estados, carriles de aprobación, tablero con semáforo, antes/después, pirámide y matriz. Alternar fondos oscuro/claro; mismo encabezado y barra de acción.
+- **Estructura comercial:** titular que conecta con un problema real -> RIESGO -> LO QUE HACEMOS -> visual -> beneficios (una sola fila de chips) -> autoridad (metodología, reporte semanal, responsable, expediente) -> CTA específico + contactos + QR de WhatsApp + "Respuesta inicial para conocer tu operación".
+- **Tres adaptaciones reales:** 1350 (completa: riesgo y lo que hacemos, visual, beneficios, autoridad), 1080 (directa: problema, visual, CTA), 1920 (titular mayor, menos filas, zonas seguras arriba y abajo).
+- **Sin cifras inventadas:** estados cualitativos (Documentado, Por validar, En seguimiento, Atención requerida, Riesgo alto, Pendiente de autorización).
+- **Legibilidad:** texto mínimo 20 px (22+ en historias), contraste >= 4.5:1 (en texto claro usar variantes oscuras: turquesa #0A7C82, dorado #8A5E00, coral #B8321F; etiqueta RIESGO sobre #C9402A; chips con texto azul marino sobre turquesa). Un solo estilo de íconos (línea de 2 px, 24x24).
+- **Calidad:** revisar contactos, ortografía y que cada imagen mida exactamente 1080x1350, 1080x1080 o 1080x1920; confirmar que el QR abre WhatsApp con el número correcto.

@@ -69,7 +69,7 @@ def marca():
 
 
 def contacto(sep=" · "):
-    datos = [CFG.get(k, "") for k in ("correo", "telefono", "web")]
+    datos = [CFG.get(k, "") for k in ("correo", "correo_admin", "telefono", "web")]
     return sep.join(d for d in datos if d)
 
 
@@ -233,7 +233,7 @@ def slides():
         <div style="display:flex;gap:16px"><div class="card" style="min-width:210px"><b style="color:var(--gold)">1 · Diagnóstico</b><br>Conversación y revisión de procesos</div>
         <div class="card" style="min-width:210px"><b style="color:var(--gold)">2 · Propuesta</b><br>Alcance, entregables y calendario</div>
         <div class="card" style="min-width:210px"><b style="color:var(--gold)">3 · Arranque</b><br>Plan de implementación de 30 días</div></div>
-        <p style="margin-top:34px;font-size:22px;font-weight:700;color:var(--gold)">{contacto("  ·  ")}</p>
+        <div style="margin-top:34px;font-size:22px;font-weight:700;color:var(--gold);display:flex;flex-wrap:wrap;gap:8px 28px">{"".join(f'<span style="white-space:nowrap">{d_}</span>' for d_ in [CFG.get(k, "") for k in ("correo", "correo_admin", "telefono", "web")] if d_)}</div>
       </div>{pie(10)}</section>''')
     return s
 
@@ -420,12 +420,8 @@ def main():
     # infografías
     tmp = os.path.join(OUT, "_tmp")
     os.makedirs(tmp)
-    for fmt, (w_, h_) in FORMATOS.items():
-        os.makedirs(os.path.join(OUT, "infografias", f"{w_}x{h_}"), exist_ok=True)
-        for nombre, tit, sub, items, k, semf in INFOGRAFIAS:
-            ruta = os.path.join(tmp, f"{nombre}_{fmt}.html")
-            open(ruta, "w", encoding="utf-8").write(info_html(fmt, tit, sub, items, k, semf))
-            captura(ruta, os.path.join(OUT, "infografias", f"{w_}x{h_}", nombre + ".png"), w_, h_)
+    import generar_infografias as GI
+    piezas = GI.generar(OUT)
     ho = os.path.join(tmp, "handout.html")
     open(ho, "w", encoding="utf-8").write(handout_html())
     pdf(ho, os.path.join(OUT, "Presentacion_Comercial_Impresion_con_notas.pdf"))
@@ -436,8 +432,8 @@ def main():
     for t, x in MENSAJES:
         md.append(f"## {t}\n\n{x.replace('{m}', m)}\n")
     md.append("## Textos para acompañar cada infografía\n")
-    for (nombre, tit, *_), l in zip(INFOGRAFIAS, LEYENDAS):
-        md.append(f"**{tit.title()}** — {l}\n")
+    for pz in piezas:
+        md.append(f"**{pz['id'][3:].replace('_', ' ')}** — {pz['leyenda']}\n")
     open(os.path.join(OUT, "Mensajes_WhatsApp.md"), "w", encoding="utf-8").write("\n".join(md))
     md = ["# Guion de presentación (10 láminas)\n", "Estructura: problema, impacto, solución, método, entregables y próximo paso.\n"]
     for t, x in GUION:
@@ -446,7 +442,7 @@ def main():
     from docx import Document
     from docx.shared import Pt, RGBColor
     for nombre, titulo_, bloques in (("Mensajes_WhatsApp", "Mensajes de WhatsApp y textos para redes", [(t, x.replace("{m}", m)) for t, x in MENSAJES] +
-                                      [("Texto para " + n_[1].title(), l) for n_, l in zip(INFOGRAFIAS, LEYENDAS)]),
+                                      [("Texto para " + pz["id"][3:].replace("_", " "), pz["leyenda"]) for pz in piezas]),
                                      ("Guion_Presentacion", "Guion de presentación comercial (10 láminas)", GUION)):
         d = Document()
         d.styles["Normal"].font.name = "Arial"

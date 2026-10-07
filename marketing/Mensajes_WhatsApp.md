@@ -4,15 +4,15 @@ Sustituye los datos entre [CORCHETES] antes de enviar.
 
 ## Solicitar reunión · empresa industrial
 
-Hola [NOMBRE], te escribo de [TU MARCA]. Ayudamos a empresas industriales a ordenar nómina, cumplimiento fiscal/IMSS, compras y cobranza con un tablero semanal para dirección. ¿Te parece si agendamos 30 minutos esta semana para revisar dónde hoy hay más riesgo en [EMPRESA]? Orden para operar. Control para crecer.
+Hola [NOMBRE], te escribo de Grupo Canville. Ayudamos a empresas industriales a ordenar nómina, cumplimiento fiscal/IMSS, compras y cobranza con un tablero semanal para dirección. ¿Te parece si agendamos 30 minutos esta semana para revisar dónde hoy hay más riesgo en [EMPRESA]? Orden para operar. Control para crecer.
 
 ## Solicitar reunión · constructora
 
-Hola [NOMBRE], soy [TU NOMBRE] de [TU MARCA]. Trabajamos con constructoras para controlar compras, avance vs. presupuesto, pendientes y el cierre documental de cada obra. Un proyecto no termina al entregar: termina al cerrar bien. ¿Podemos platicar 30 minutos sobre [PROYECTO]?
+Hola [NOMBRE], soy [TU NOMBRE] de Grupo Canville. Trabajamos con constructoras para controlar compras, avance vs. presupuesto, pendientes y el cierre documental de cada obra. Un proyecto no termina al entregar: termina al cerrar bien. ¿Podemos platicar 30 minutos sobre [PROYECTO]?
 
 ## Solicitar reunión · empresa de servicios o comercio
 
-Hola [NOMBRE], te contacto de [TU MARCA]. Si hoy la administración de [EMPRESA] depende de archivos sueltos y memoria, podemos dejarte un sistema de formatos y controles listo en 30 días. ¿Tienes 30 minutos esta semana para mostrártelo?
+Hola [NOMBRE], te contacto de Grupo Canville. Si hoy la administración de [EMPRESA] depende de archivos sueltos y memoria, podemos dejarte un sistema de formatos y controles listo en 30 días. ¿Tienes 30 minutos esta semana para mostrártelo?
 
 ## Envío de infografía
 
@@ -48,18 +48,22 @@ Hola [NOMBRE], hace tiempo platicamos sobre ordenar la administración de [EMPRE
 
 ## Textos para acompañar cada infografía
 
-**Operación Bajo Control** — Operación bajo control: ordenar, planear, ejecutar y cerrar. ¿Cuál de los cuatro pasos te falta hoy? Escríbenos.
+**Operacion bajo control** — Si tu operación depende de recordatorios, ya necesitas un sistema de control: ordenar, planear, ejecutar, cerrar y aprender. Cada pendiente con responsable, fecha, evidencia y siguiente acción.
 
-**Nómina Sin Sorpresas** — Nómina sin sorpresas: de la asistencia al recibo archivado, con evidencia en cada paso.
+**Facturacion y cobranza** — Facturar no es cobrar. De la factura emitida a la conciliación: seguimiento, compromiso de pago y aplicación. Solicita una revisión de tu cartera y cobranza.
 
-**Fiscal E Imss Sin Improvisar** — Fiscal e IMSS sin improvisar: calendario, acuses y expediente por mes.
+**Plan de 30 dias** — 30 días para saber qué está pendiente, quién lo atiende y cómo se cierra: diagnóstico, prioridades, ejecución y primer reporte para dirección.
 
-**Facturación Y Cobranza** — Lo que se factura y no se cobra es riesgo. Revisa tu antigüedad de saldos cada semana.
+**Nomina sin sorpresas** — Una nómina sin evidencia es un riesgo laboral. Entradas validadas, proceso controlado y resultados documentados, periodo por periodo.
 
-**Compras Y Proyectos Bajo Control** — Compras y proyectos bajo control: requisición, comparativo, orden, recepción y cierre.
+**Fiscal e IMSS** — Cumplir no es solo presentar a tiempo: es poder demostrarlo. Documentos al día, pagos con acuse y expediente por mes.
 
-**Una Página Para Decidir** — Una página para decidir: avances, pendientes, riesgos y decisiones requeridas.
+**Compras y proyectos** — Compras y proyectos bajo control: requisición, comparativo, autorización, orden, recepción y conciliación de tres vías.
 
-**Cierra Bien Tus Proyectos** — Un proyecto no termina al entregar. Termina al cerrar bien.
+**Reporte para direccion** — Dirección no necesita más datos: necesita saber qué decidir hoy. Tablero semanal con semáforos, riesgos y decisiones requeridas.
 
-**En 30 Días, Tu Operación En Orden** — En 30 días: diagnóstico, plan, operación con controles y primer reporte para dirección.
+**Cierre de proyectos** — Un proyecto no termina al entregar: termina al cerrar bien. Acta firmada, cifras conciliadas, pendientes en cero y expediente completo.
+
+**Construccion control de obra** — Para constructoras: control de compras, contratistas, estimaciones, facturación y expediente de obra. Una obra bien construida necesita una administración bien documentada.
+
+**Industria continuidad operativa** — Para industria: continuidad operativa con compras, proveedores, personal, cumplimiento y reportes para dirección documentados y con responsable.
