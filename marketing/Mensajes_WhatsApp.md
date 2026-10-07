@@ -4,15 +4,15 @@ Sustituye los datos entre [CORCHETES] antes de enviar.
 
 ## Solicitar reunión · empresa industrial
 
-Hola [NOMBRE], te escribo de Grupo Canville. Ayudamos a empresas industriales a ordenar nómina, cumplimiento fiscal/IMSS, compras y cobranza con un tablero semanal para dirección. ¿Te parece si agendamos 30 minutos esta semana para revisar dónde hoy hay más riesgo en [EMPRESA]? Orden para operar. Control para crecer.
+Hola [NOMBRE], te escribo de [TU MARCA]. Ayudamos a empresas industriales a ordenar nómina, cumplimiento fiscal/IMSS, compras y cobranza con un tablero semanal para dirección. ¿Te parece si agendamos 30 minutos esta semana para revisar dónde hoy hay más riesgo en [EMPRESA]? Orden para operar. Control para crecer.
 
 ## Solicitar reunión · constructora
 
-Hola [NOMBRE], soy [TU NOMBRE] de Grupo Canville. Trabajamos con constructoras para controlar compras, avance vs. presupuesto, pendientes y el cierre documental de cada obra. Un proyecto no termina al entregar: termina al cerrar bien. ¿Podemos platicar 30 minutos sobre [PROYECTO]?
+Hola [NOMBRE], soy [TU NOMBRE] de [TU MARCA]. Trabajamos con constructoras para controlar compras, avance vs. presupuesto, pendientes y el cierre documental de cada obra. Un proyecto no termina al entregar: termina al cerrar bien. ¿Podemos platicar 30 minutos sobre [PROYECTO]?
 
 ## Solicitar reunión · empresa de servicios o comercio
 
-Hola [NOMBRE], te contacto de Grupo Canville. Si hoy la administración de [EMPRESA] depende de archivos sueltos y memoria, podemos dejarte un sistema de formatos y controles listo en 30 días. ¿Tienes 30 minutos esta semana para mostrártelo?
+Hola [NOMBRE], te contacto de [TU MARCA]. Si hoy la administración de [EMPRESA] depende de archivos sueltos y memoria, podemos dejarte un sistema de formatos y controles listo en 30 días. ¿Tienes 30 minutos esta semana para mostrártelo?
 
 ## Envío de infografía
 

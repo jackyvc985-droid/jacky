@@ -11,6 +11,7 @@ RAIZ = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(RAIZ, "marketing")
 CH = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
 CFG = json.load(open(os.path.join(RAIZ, "assets", "config_marca.json"), encoding="utf-8"))
+ETIQUETA = CFG.get("marca") or "SISTEMA ADMINISTRATIVO"
 LOGO = os.path.join(RAIZ, "assets", "logo.png")
 PREV = os.path.join(RAIZ, "vistas_previas")
 
@@ -62,8 +63,8 @@ if os.path.exists(LOGO):
 
 def marca():
     if LOGO_B64:
-        return f'<img class="logo" src="{LOGO_B64}" alt="{CFG["marca"]}">'
-    return f'<div class="wm">{CFG["marca"]}</div>'
+        return f'<img class="logo" src="{LOGO_B64}" alt="{ETIQUETA}">'
+    return f'<div class="wm">{ETIQUETA}</div>'
 
 
 def contacto(sep=" · "):
@@ -98,7 +99,7 @@ def ico(n):
 
 # ----------------------------------------------------------------------------- PRESENTACIÓN
 def pie(n, oscuro=False):
-    return f'<div class="foot" style="position:absolute;left:64px;right:64px;bottom:26px;display:flex;justify-content:space-between;font-size:12px;opacity:.65"><span>{CFG["marca"]} · {CFG["lema"]}</span><span>{n:02d} / 10</span></div>'
+    return f'<div class="foot" style="position:absolute;left:64px;right:64px;bottom:26px;display:flex;justify-content:space-between;font-size:12px;opacity:.65"><span>{CFG["lema"]}</span><span>{n:02d} / 10</span></div>'
 
 
 def top(oscuro=False, kicker=""):
@@ -243,7 +244,7 @@ addEventListener('resize',fit);fit();show((parseInt(location.hash.slice(1))||1)-
 document.getElementById('prev').onclick=()=>show(i-1);document.getElementById('next').onclick=()=>show(i+1);
 """
     return f'''<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{CFG["marca"]} · {CFG["lema"]}</title><style>{CSS}
+<title>{CFG["lema"]}</title><style>{CSS}
 html,body{{height:100%;overflow:hidden}}
 #stage{{width:1280px;height:720px;transform-origin:0 0;position:relative;margin-top:8px}}
 .slide{{width:1280px;height:720px;position:absolute;left:0;top:0;overflow:hidden;display:none;border-radius:6px}}
@@ -379,7 +380,7 @@ def main():
         captura(ruta, os.path.join(OUT, "infografias", nombre + ".png"), 1080, 1350)
     shutil.rmtree(tmp)
     # textos
-    m = CFG["marca"].title()
+    m = CFG["marca"].title() if CFG.get("marca") else "[TU MARCA]"
     md = ["# Mensajes de WhatsApp y textos para redes\n", "Sustituye los datos entre [CORCHETES] antes de enviar.\n"]
     for t, x in MENSAJES:
         md.append(f"## {t}\n\n{x.replace('{m}', m)}\n")

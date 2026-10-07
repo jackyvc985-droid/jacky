@@ -10,7 +10,7 @@ PLANT = os.path.join(RAIZ, "plantillas")
 PREV = os.path.join(RAIZ, "vistas_previas")
 PORT = os.path.join(RAIZ, "portadas")
 ZIPS = os.path.join(RAIZ, "paquetes_zip")
-MARCA = "GRUPO CANVILLE"
+MARCA = "FORMATOS ADMINISTRATIVOS"  # etiqueta genérica, sin marca
 CATEGORIAS = {
     "1_Contabilidad_y_Finanzas": ("Contabilidad y Finanzas", "Excel"),
     "2_Recursos_Humanos": ("Recursos Humanos", "Excel"),

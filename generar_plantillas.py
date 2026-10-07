@@ -22,7 +22,8 @@ GOLD = "C9A227"     # dorado sobrio (acento)
 CLARO = "E6ECF1"
 INPUT = "FFFCF0"
 CALC = "EEF2F5"
-MARCA = "GRUPO CANVILLE"
+MARCA = ""  # sin marca: el producto se vende a terceros
+ETIQUETA = "FORMATOS ADMINISTRATIVOS"
 FUENTE = "Abadi"
 # capacidad (último renglón de captura) de cada formato; generar_ejemplos.py las importa
 ING_F0, ING_F1 = 8, 307
@@ -313,7 +314,7 @@ def instrucciones(wb, titulo, pasos):
             ws.cell(r, c).fill = azul
     ws.row_dimensions[1].height = 8
     ws.row_dimensions[2].height = 22
-    ws["B2"] = MARCA
+    ws["B2"] = ETIQUETA
     ws["B2"].font = Font(size=11, bold=True, color=GOLD)
     ws.merge_cells("E2:F2")
     ws["E2"] = "VERSIÓN 2.0  ·  MÉXICO"
@@ -393,7 +394,7 @@ def instrucciones(wb, titulo, pasos):
     for c in range(1, 8):
         ws.cell(r, c).fill = azul
     ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=6)
-    f_ = ws.cell(r, 2, f"{MARCA}  ·  Formatos administrativos  ·  Para uso interno de tu empresa")
+    f_ = ws.cell(r, 2, "Formatos administrativos  ·  Para uso interno de tu empresa")
     f_.font = Font(size=9, color="C9D3DB")
     f_.alignment = Alignment(vertical="center")
     ws.row_dimensions[r].height = 26

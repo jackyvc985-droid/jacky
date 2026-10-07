@@ -1,6 +1,6 @@
-# Papeles de trabajo administrativos (México) · Grupo Canville
+# Papeles de trabajo administrativos (México)
 
-38 formatos editables listos para vender: 22 libros de Excel y 16 documentos de Word. Identidad: azul marino, azul turquesa, coral, dorado y gris ejecutivo;
+38 formatos editables listos para vender: 22 libros de Excel y 16 documentos de Word. Sin marca ni logotipo (producto para venta a terceros). Paleta: azul marino, azul turquesa, coral, dorado y gris ejecutivo;
 fuente Abadi (incluida en Microsoft 365); títulos, encabezados y etiquetas en mayúsculas.
 
 Cada Excel incluye: PORTADA con contenido e instrucciones, FORMATO con fórmulas y listas desplegables, tablero RESUMEN con gráficas (en 14 de ellos),
