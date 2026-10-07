@@ -23,16 +23,35 @@ def libro(titulo, subtitulo, ancho_cols, hoja="Formato", horizontal=True):
     n = len(ancho_cols)
     for i, w in enumerate(ancho_cols, 1):
         ws.column_dimensions[L(i)].width = w
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n)
+    # Recuadro de logo: últimas k columnas (>= 18 de ancho) en filas 1-2
+    k, acum = 0, 0
+    while k < n - 2 and acum < 18:
+        k += 1
+        acum += ancho_cols[n - k]
+    t_fin = n - k
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=t_fin)
     c = ws.cell(1, 1, titulo)
     c.font = Font(name="Calibri", size=18, bold=True, color="FFFFFF")
     c.fill = PatternFill("solid", fgColor=COLOR)
     c.alignment = Alignment(horizontal="center", vertical="center")
-    ws.row_dimensions[1].height = 34
-    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=n)
-    s = ws.cell(2, 1, subtitulo)
-    s.font = Font(italic=True, color="595959")
-    s.alignment = Alignment(horizontal="center")
+    for cc in range(1, t_fin + 1):
+        ws.cell(1, cc).fill = PatternFill("solid", fgColor=COLOR)
+    ws.row_dimensions[1].height = 38
+    ws.row_dimensions[2].height = 24
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=t_fin)
+    s_ = ws.cell(2, 1, subtitulo)
+    s_.font = Font(italic=True, color="595959")
+    s_.alignment = Alignment(horizontal="center", vertical="center")
+    lg0 = t_fin + 1
+    ws.merge_cells(start_row=1, start_column=lg0, end_row=2, end_column=n)
+    lg = ws.cell(1, lg0, "INSERTE SU LOGO\n(clic derecho > Insertar imagen)")
+    lg.font = Font(size=8, italic=True, color="A6A6A6")
+    lg.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    dash = Side(style="dashed", color="A6A6A6")
+    for rr in (1, 2):
+        for cc in range(lg0, n + 1):
+            ws.cell(rr, cc).border = Border(top=dash if rr == 1 else None, bottom=dash if rr == 2 else None,
+                                            left=dash if cc == lg0 else None, right=dash if cc == n else None)
     ws.sheet_view.showGridLines = False
     ws.page_setup.orientation = "landscape" if horizontal else "portrait"
     ws.page_setup.fitToWidth = 1
@@ -140,6 +159,8 @@ def instrucciones(wb, titulo, pasos):
     ws["B1"].font = Font(size=16, bold=True, color=COLOR)
     ws["B2"] = "Guía de uso"
     ws["B2"].font = Font(italic=True, color="595959")
+    pasos = list(pasos) + ["Personaliza: en el recuadro punteado de la esquina superior derecha inserta tu logo "
+                           "(Insertar > Imágenes) y captura los datos de tu empresa en las celdas amarillas."]
     for i, p in enumerate(pasos, 1):
         ws.cell(3 + i, 1, i).font = Font(bold=True, color=COLOR)
         c = ws.cell(3 + i, 2, p)

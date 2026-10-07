@@ -41,7 +41,31 @@ def runs(p, texto, bold=False):
     return p
 
 
+def encabezado_empresa(d):
+    """Recuadro para logo + datos de la empresa de quien compra la plantilla."""
+    t = d.add_table(rows=1, cols=2)
+    t.style = "Table Grid"
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER
+    a, b = t.cell(0, 0), t.cell(0, 1)
+    a.width, b.width = Cm(4.5), Cm(12)
+    a.text, b.text = "", ""
+    pa = a.paragraphs[0]
+    pa.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = pa.add_run("\nINSERTE SU LOGO\n(Insertar > Imágenes)\n")
+    r.italic = True
+    r.font.size = Pt(8)
+    r.font.color.rgb = RGBColor(0xA6, 0xA6, 0xA6)
+    runs(b.paragraphs[0], "[NOMBRE DE SU EMPRESA]")
+    b.paragraphs[0].runs[0].bold = True
+    q = b.add_paragraph()
+    runs(q, "RFC: [RFC]  ·  Tel.: [TELÉFONO]\n[DIRECCIÓN]  ·  [CORREO / SITIO WEB]")
+    for x in q.runs:
+        x.font.size = Pt(9)
+    d.add_paragraph()
+
+
 def titulo(d, t, sub=None):
+    encabezado_empresa(d)
     p = d.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r = p.add_run(t.upper())
