@@ -10,7 +10,10 @@ from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plantillas", "5_Documentos_Word")
-AZUL = RGBColor(0x1F, 0x4E, 0x78)
+AZUL = RGBColor(0x0B, 0x2A, 0x4A)    # azul marino
+PETROL = RGBColor(0x1B, 0x6B, 0x73)  # verde petróleo
+GRIS = RGBColor(0x5B, 0x6B, 0x78)
+ORO = "C9A227"
 AVISO = ("Formato de uso general con fines administrativos y orientativos. No constituye asesoría legal; "
          "se recomienda que un abogado lo revise y adapte a su caso antes de firmarlo.")
 
@@ -25,8 +28,64 @@ def nuevo():
     st.font.name = "Calibri"
     st.font.size = Pt(11)
     st.element.rPr.rFonts.set(qn("w:eastAsia"), "Calibri")
-    st.paragraph_format.space_after = Pt(6)
+    st.font.color.rgb = RGBColor(0x2B, 0x2B, 0x2B)
+    st.paragraph_format.space_after = Pt(8)
+    st.paragraph_format.line_spacing = 1.15
+    pf = d.styles["Footer"].font
+    pf.size = Pt(8)
+    pf.color.rgb = GRIS
+    pie(s)
     return d
+
+
+def _campo(run, instr):
+    for tipo, txt in (("begin", None), (None, instr), ("end", None)):
+        if tipo:
+            f = OxmlElement("w:fldChar")
+            f.set(qn("w:fldCharType"), tipo)
+        else:
+            f = OxmlElement("w:instrText")
+            f.set(qn("xml:space"), "preserve")
+            f.text = txt
+        run._r.append(f)
+
+
+def pie(sec):
+    p = sec.footer.paragraphs[0]
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    for txt, campo_ in (("Página ", None), (None, "PAGE"), (" de ", None), (None, "NUMPAGES")):
+        r = p.add_run(txt or "")
+        r.font.size = Pt(8)
+        r.font.color.rgb = GRIS
+        if campo_:
+            _campo(r, campo_)
+
+
+def borde_parrafo(p, lado="bottom", color=ORO, sz=12, espacio=4):
+    pPr = p._p.get_or_add_pPr()
+    b = OxmlElement("w:pBdr")
+    e = OxmlElement(f"w:{lado}")
+    e.set(qn("w:val"), "single")
+    e.set(qn("w:sz"), str(sz))
+    e.set(qn("w:space"), str(espacio))
+    e.set(qn("w:color"), color)
+    b.append(e)
+    pPr.append(b)
+
+
+def bordes_celda(c, **lados):
+    """lados: top/bottom/left/right = (val, color) o None para sin borde."""
+    tcPr = c._tc.get_or_add_tcPr()
+    b = OxmlElement("w:tcBorders")
+    for lado in ("top", "left", "bottom", "right"):
+        e = OxmlElement(f"w:{lado}")
+        v = lados.get(lado)
+        e.set(qn("w:val"), v[0] if v else "nil")
+        if v:
+            e.set(qn("w:sz"), "6")
+            e.set(qn("w:color"), v[1])
+        b.append(e)
+    tcPr.append(b)
 
 
 def runs(p, texto, bold=False):
@@ -44,23 +103,34 @@ def runs(p, texto, bold=False):
 def encabezado_empresa(d):
     """Recuadro para logo + datos de la empresa de quien compra la plantilla."""
     t = d.add_table(rows=1, cols=2)
-    t.style = "Table Grid"
     t.alignment = WD_TABLE_ALIGNMENT.CENTER
     a, b = t.cell(0, 0), t.cell(0, 1)
     a.width, b.width = Cm(4.5), Cm(12)
     a.text, b.text = "", ""
+    tr = t.rows[0]._tr
+    trPr = tr.get_or_add_trPr()
+    h = OxmlElement("w:trHeight")
+    h.set(qn("w:val"), "1300")
+    trPr.append(h)
+    d_ = ("dashed", "A6B3BF")
+    bordes_celda(a, top=d_, bottom=d_, left=d_, right=d_)
+    bordes_celda(b, bottom=("single", "C9D3DB"))
     pa = a.paragraphs[0]
     pa.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = pa.add_run("\nINSERTE SU LOGO\n(Insertar > Imágenes)\n")
-    r.italic = True
+    r = pa.add_run("\nINSERTE SU LOGO\n(Insertar > Imágenes)")
     r.font.size = Pt(8)
-    r.font.color.rgb = RGBColor(0xA6, 0xA6, 0xA6)
-    runs(b.paragraphs[0], "[NOMBRE DE SU EMPRESA]")
-    b.paragraphs[0].runs[0].bold = True
+    r.font.color.rgb = RGBColor(0xA6, 0xB3, 0xBF)
+    pb = b.paragraphs[0]
+    pb.paragraph_format.left_indent = Cm(0.4)
+    runs(pb, "[NOMBRE DE SU EMPRESA]")
+    pb.runs[0].bold = True
+    pb.runs[0].font.size = Pt(13)
     q = b.add_paragraph()
+    q.paragraph_format.left_indent = Cm(0.4)
     runs(q, "RFC: [RFC]  ·  Tel.: [TELÉFONO]\n[DIRECCIÓN]  ·  [CORREO / SITIO WEB]")
     for x in q.runs:
         x.font.size = Pt(9)
+        x.font.color.rgb = GRIS
     d.add_paragraph()
 
 
@@ -70,14 +140,16 @@ def titulo(d, t, sub=None):
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r = p.add_run(t.upper())
     r.bold = True
-    r.font.size = Pt(16)
+    r.font.size = Pt(18)
     r.font.color.rgb = AZUL
+    p.paragraph_format.space_after = Pt(10)
+    borde_parrafo(p)
     if sub:
         q = d.add_paragraph()
         q.alignment = WD_ALIGN_PARAGRAPH.CENTER
         r = q.add_run(sub)
         r.italic = True
-        r.font.color.rgb = RGBColor(0x59, 0x59, 0x59)
+        r.font.color.rgb = GRIS
 
 
 def par(d, t, bold=False, align=None, indent=False):
@@ -85,7 +157,12 @@ def par(d, t, bold=False, align=None, indent=False):
     p.alignment = align if align is not None else WD_ALIGN_PARAGRAPH.JUSTIFY
     if indent:
         p.paragraph_format.left_indent = Cm(0.8)
-    return runs(p, t, bold)
+    runs(p, t, bold)
+    if bold and t.isupper() or (bold and t[:2].rstrip(".").isdigit()):
+        p.paragraph_format.space_before = Pt(8)
+        for r in p.runs:
+            r.font.color.rgb = PETROL
+    return p
 
 
 def clausula(d, nombre, texto):
@@ -93,6 +170,7 @@ def clausula(d, nombre, texto):
     p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     r = p.add_run(nombre + ". ")
     r.bold = True
+    r.font.color.rgb = AZUL
     runs(p, texto)
 
 
@@ -119,6 +197,7 @@ def firmas(d, etiquetas):
 def tabla(d, encabezados, filas_vacias=5, anchos=None):
     t = d.add_table(rows=1 + filas_vacias, cols=len(encabezados))
     t.style = "Table Grid"
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER
     for i, h in enumerate(encabezados):
         c = t.cell(0, i)
         c.text = ""
@@ -129,9 +208,20 @@ def tabla(d, encabezados, filas_vacias=5, anchos=None):
         tcPr = c._tc.get_or_add_tcPr()
         sh = OxmlElement("w:shd")
         sh.set(qn("w:val"), "clear")
-        sh.set(qn("w:fill"), "1F4E78")
+        sh.set(qn("w:fill"), "0B2A4A")
         tcPr.append(sh)
+    # bordes suaves
+    tblPr = t._tbl.tblPr
+    bs = OxmlElement("w:tblBorders")
+    for lado in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        e = OxmlElement(f"w:{lado}")
+        e.set(qn("w:val"), "single")
+        e.set(qn("w:sz"), "4")
+        e.set(qn("w:color"), "C9D3DB")
+        bs.append(e)
+    tblPr.append(bs)
     if anchos:
+        t.autofit = False
         for row in t.rows:
             for i, w in enumerate(anchos):
                 row.cells[i].width = Cm(w)

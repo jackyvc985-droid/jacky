@@ -2,17 +2,28 @@
 """Genera plantillas administrativas en Excel (México) en ./plantillas/<categoria>/."""
 import os
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.styles import Font as _Font, PatternFill, Alignment, Border, Side
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.utils import get_column_letter as L
 
+
+
+def Font(**kw):
+    kw.setdefault("name", "Calibri")
+    return _Font(**kw)
+
+
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plantillas")
-COLOR = "1F4E78"
-CLARO = "DDEBF7"
-INPUT = "FFF9E5"
+COLOR = "0B2A4A"    # azul marino (principal)
+PETROL = "1B6B73"   # verde petróleo (secundario)
+GOLD = "C9A227"     # dorado sobrio (acento)
+CLARO = "E6ECF1"
+INPUT = "FFFCF0"
+CALC = "EEF2F5"
+MARCA = "GRUPO CANVILLE"
 MXN = '"$"#,##0.00'
 FECHA = "DD/MM/YYYY"
-thin = Side(style="thin", color="BFBFBF")
+thin = Side(style="thin", color="C9D3DB")
 BORDE = Border(left=thin, right=thin, top=thin, bottom=thin)
 
 
@@ -31,16 +42,25 @@ def libro(titulo, subtitulo, ancho_cols, hoja="Formato", horizontal=True):
     t_fin = n - k
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=t_fin)
     c = ws.cell(1, 1, titulo)
-    c.font = Font(name="Calibri", size=18, bold=True, color="FFFFFF")
+    c.font = Font(size=20, bold=True, color="FFFFFF")
     c.fill = PatternFill("solid", fgColor=COLOR)
     c.alignment = Alignment(horizontal="center", vertical="center")
     for cc in range(1, t_fin + 1):
         ws.cell(1, cc).fill = PatternFill("solid", fgColor=COLOR)
-    ws.row_dimensions[1].height = 38
-    ws.row_dimensions[2].height = 24
+    ws.row_dimensions[1].height = 44
+    ws.row_dimensions[2].height = 26
+    for cc in range(1, t_fin + 1):
+        ws.cell(2, cc).border = Border(bottom=Side(style="medium", color=GOLD))
+    ws.sheet_properties.tabColor = COLOR
+    ws.page_setup.firstPageNumber = 1
+    ws.page_setup.useFirstPageNumber = True
+    ws.oddFooter.center.text = "Página &P"
+    ws.oddFooter.center.size = 8
+    ws.oddFooter.right.text = "Impreso: &D"
+    ws.oddFooter.right.size = 8
     ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=t_fin)
     s_ = ws.cell(2, 1, subtitulo)
-    s_.font = Font(italic=True, color="595959")
+    s_.font = Font(italic=True, size=10, color="5B6B78")
     s_.alignment = Alignment(horizontal="center", vertical="center")
     lg0 = t_fin + 1
     ws.merge_cells(start_row=1, start_column=lg0, end_row=2, end_column=n)
@@ -79,7 +99,7 @@ def campo(ws, fila, col, etiqueta, span=2, valor=None, fmt=None):
     if actual < necesario:
         ws.column_dimensions[letra].width = necesario
     e = ws.cell(fila, col, etiqueta)
-    e.font = Font(bold=True)
+    e.font = Font(bold=True, color=PETROL)
     e.fill = PatternFill("solid", fgColor=CLARO)
     e.border = BORDE
     ini = col + 1
@@ -104,7 +124,7 @@ def filas(ws, desde, hasta, ncols, formatos=None, formulas=None, col0=1):
             cel.border = BORDE
             if c in formulas:
                 cel.value = formulas[c](r)
-                cel.fill = PatternFill("solid", fgColor="F2F2F2")
+                cel.fill = PatternFill("solid", fgColor=CALC)
             else:
                 cel.fill = PatternFill("solid", fgColor=INPUT)
             if c in formatos:
@@ -117,7 +137,7 @@ def total(ws, fila, col_etq, cols_formula, formato=MXN, etiqueta="TOTAL"):
     e.alignment = Alignment(horizontal="right")
     for c, f in cols_formula.items():
         x = ws.cell(fila, c, f)
-        x.font = Font(bold=True)
+        x.font = Font(bold=True, color=COLOR)
         x.number_format = formato
         x.border = BORDE
         x.fill = PatternFill("solid", fgColor=CLARO)
@@ -151,22 +171,59 @@ def guardar(wb, cat, nombre):
 
 
 def instrucciones(wb, titulo, pasos):
-    ws = wb.create_sheet("Instrucciones")
+    """Hoja 'Portada' (primera pestaña): título, cómo usar, leyenda de colores y marca."""
+    ws = wb.create_sheet("Portada", 0)
     ws.sheet_view.showGridLines = False
-    ws.column_dimensions["A"].width = 4
-    ws.column_dimensions["B"].width = 95
-    ws["B1"] = titulo
-    ws["B1"].font = Font(size=16, bold=True, color=COLOR)
-    ws["B2"] = "Guía de uso"
-    ws["B2"].font = Font(italic=True, color="595959")
+    ws.sheet_properties.tabColor = GOLD
+    for col, w in (("A", 4), ("B", 5), ("C", 88), ("D", 4)):
+        ws.column_dimensions[col].width = w
+    azul = PatternFill("solid", fgColor=COLOR)
+    for r in range(1, 8):
+        for c in range(1, 5):
+            ws.cell(r, c).fill = azul
+    ws.row_dimensions[2].height = 20
+    ws["B2"] = MARCA
+    ws["B2"].font = Font(size=10, bold=True, color=GOLD)
+    ws.row_dimensions[4].height = 40
+    ws["B4"] = titulo
+    ws["B4"].font = Font(size=26, bold=True, color="FFFFFF")
+    ws["B5"] = "Formato administrativo editable · México"
+    ws["B5"].font = Font(size=12, color="C9D3DB")
+    for c in range(1, 5):
+        ws.cell(8, c).border = Border(top=Side(style="thick", color=GOLD))
+    ws.row_dimensions[8].height = 6
+    ws["B10"] = "CÓMO USARLO"
+    ws["B10"].font = Font(size=11, bold=True, color=PETROL)
     pasos = list(pasos) + ["Personaliza: en el recuadro punteado de la esquina superior derecha inserta tu logo "
-                           "(Insertar > Imágenes) y captura los datos de tu empresa en las celdas amarillas."]
+                           "(Insertar > Imágenes) y captura los datos de tu empresa en las celdas de captura."]
+    r = 11
     for i, p in enumerate(pasos, 1):
-        ws.cell(3 + i, 1, i).font = Font(bold=True, color=COLOR)
-        c = ws.cell(3 + i, 2, p)
+        ws.cell(r, 2, i).font = Font(bold=True, size=12, color=GOLD)
+        ws.cell(r, 2).alignment = Alignment(horizontal="center", vertical="top")
+        c = ws.cell(r, 3, p)
         c.alignment = Alignment(wrap_text=True, vertical="top")
-    n = 5 + len(pasos)
-    ws.cell(n, 2, "Celdas amarillas = captura · Celdas grises = cálculo automático (no modificar).").font = Font(italic=True)
+        c.font = Font(size=11, color="2B2B2B")
+        ws.row_dimensions[r].height = 15 * max(1, -(-len(p) // 95)) + 6
+        r += 1
+    r += 1
+    ws.cell(r, 2, "LEYENDA").font = Font(size=11, bold=True, color=PETROL)
+    r += 1
+    for color, txt in ((INPUT, "Celda de captura: escribe aquí."), (CALC, "Cálculo automático: no la modifiques."),
+                       (COLOR, "Encabezados y títulos.")):
+        sw = ws.cell(r, 2, "")
+        sw.fill = PatternFill("solid", fgColor=color)
+        sw.border = BORDE
+        ws.cell(r, 3, txt).font = Font(size=10, color="5B6B78")
+        r += 1
+    r += 1
+    for c in range(1, 5):
+        ws.cell(r, c).border = Border(top=Side(style="thin", color=GOLD))
+    ws.cell(r + 1, 2, f"{MARCA} · Formatos administrativos · v1.0").font = Font(size=9, color="8A97A3")
+    ws.page_setup.orientation = "portrait"
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 1
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    wb.active = 0
 
 
 # ---------------------------------------------------------------- CONTABILIDAD
@@ -235,7 +292,7 @@ def flujo_efectivo():
     def seccion(nombre, items):
         nonlocal r
         c = ws.cell(r, 1, nombre)
-        c.font = Font(bold=True, color=COLOR)
+        c.font = Font(bold=True, color=PETROL)
         c.fill = PatternFill("solid", fgColor=CLARO)
         for k in range(2, 15):
             ws.cell(r, k).fill = PatternFill("solid", fgColor=CLARO)
@@ -301,7 +358,7 @@ def cuentas_por_cobrar():
         11: lambda r: f'=IF(I{r}="","",IF(I{r}<=0,"Pagada",IF(J{r}>0,"Vencida","Vigente")))'})
     total(ws, f1 + 1, 6, {7: f"=SUM(G{f0}:G{f1})", 8: f"=SUM(H{f0}:H{f1})", 9: f"=SUM(I{f0}:I{f1})"})
     r = f1 + 3
-    ws.cell(r, 2, "ANTIGÜEDAD DE SALDOS").font = Font(bold=True, color=COLOR)
+    ws.cell(r, 2, "ANTIGÜEDAD DE SALDOS").font = Font(bold=True, color=PETROL)
     rangos = [("Vigente", f'=SUMIFS(I{f0}:I{f1},K{f0}:K{f1},"Vigente")'),
               ("1 a 30 días", f'=SUMIFS(I{f0}:I{f1},J{f0}:J{f1},">=1",J{f0}:J{f1},"<=30")'),
               ("31 a 60 días", f'=SUMIFS(I{f0}:I{f1},J{f0}:J{f1},">=31",J{f0}:J{f1},"<=60")'),
@@ -336,17 +393,17 @@ def conciliacion():
         c = ws.cell(r, 3, val)
         c.number_format = MXN
         c.border = BORDE
-        c.fill = PatternFill("solid", fgColor="F2F2F2" if formula else INPUT)
+        c.fill = PatternFill("solid", fgColor=CALC if formula else INPUT)
         if negrita:
             c.font = Font(bold=True)
 
-    ws.cell(8, 2, "SEGÚN ESTADO DE CUENTA").font = Font(bold=True, color=COLOR)
+    ws.cell(8, 2, "SEGÚN ESTADO DE CUENTA").font = Font(bold=True, color=PETROL)
     linea(9, "Saldo final según banco")
     linea(10, "(+) Depósitos en tránsito")
     linea(11, "(-) Cheques / pagos en tránsito")
     linea(12, "(+/-) Errores del banco")
     linea(13, "SALDO BANCARIO AJUSTADO", "=C9+C10-C11+C12", True, True)
-    ws.cell(15, 2, "SEGÚN LIBROS").font = Font(bold=True, color=COLOR)
+    ws.cell(15, 2, "SEGÚN LIBROS").font = Font(bold=True, color=PETROL)
     linea(16, "Saldo final según libros")
     linea(17, "(+) Depósitos no registrados / intereses")
     linea(18, "(-) Comisiones y cargos no registrados")
@@ -355,7 +412,7 @@ def conciliacion():
     linea(21, "SALDO EN LIBROS AJUSTADO", "=C16+C17-C18-C19+C20", True, True)
     linea(23, "DIFERENCIA (debe ser 0)", "=ROUND(C13-C21,2)", True, True)
     ws.cell(24, 2, '=IF(C23=0,"✔ Conciliado","✘ Revisar partidas pendientes")').font = Font(bold=True)
-    ws.cell(26, 2, "Detalle de partidas en tránsito").font = Font(bold=True, color=COLOR)
+    ws.cell(26, 2, "Detalle de partidas en tránsito").font = Font(bold=True, color=PETROL)
     encabezado(ws, 27, ["No.", "Descripción", "Fecha", "Importe"])
     filas(ws, 28, 37, 4, {3: FECHA, 4: MXN}, {1: lambda r: r - 27})
     firmas(ws, 41, ["Elaboró", "Autorizó"], 4)
@@ -479,7 +536,7 @@ def evaluacion():
     lista(ws, "C9:C16", ["1", "2", "3", "4", "5"])
     total(ws, 17, 3, {4: "=SUM(D9:D16)", 5: "=SUM(E9:E16)"}, "0.00", "RESULTADO")
     ws["D17"].number_format = "0%"
-    ws.cell(18, 2, '=IF(E17="","",IF(E17>=4.5,"Sobresaliente",IF(E17>=3.5,"Satisfactorio",IF(E17>=2.5,"Requiere mejora","Deficiente"))))').font = Font(bold=True, size=12)
+    ws.cell(18, 2, '=IF(COUNT(C9:C16)=0,"",IF(E17>=4.5,"Sobresaliente",IF(E17>=3.5,"Satisfactorio",IF(E17>=2.5,"Requiere mejora","Deficiente"))))').font = Font(bold=True, size=12)
     ws.cell(20, 2, "Fortalezas").font = Font(bold=True)
     ws.merge_cells("B21:F23")
     ws.cell(25, 2, "Áreas de oportunidad / plan de acción").font = Font(bold=True)
@@ -543,7 +600,7 @@ def kardex():
         a, b = rng.split(":")
         ws.merge_cells(rng)
         ws[a] = txt
-        ws[a].font = Font(bold=True, color=COLOR)
+        ws[a].font = Font(bold=True, color=PETROL)
         ws[a].alignment = Alignment(horizontal="center")
     encabezado(ws, 8, ["No.", "Fecha", "Documento", "Concepto", "Cant.", "Costo unit.", "Importe",
                        "Cant.", "Costo unit.", "Importe", "Cant.", "Costo prom.", "Importe"])
@@ -641,7 +698,7 @@ def cotizacion_comparativa():
         for off in (3, 4):
             ws.cell(r + off, pc + 1).fill = PatternFill("solid", fgColor=INPUT)
             ws.cell(r + off, pc + 1).border = BORDE
-    ws.cell(r + 6, 2, "MEJOR OPCIÓN (menor total)").font = Font(bold=True, color=COLOR)
+    ws.cell(r + 6, 2, "MEJOR OPCIÓN (menor total)").font = Font(bold=True, color=PETROL)
     cols = [("F", "E"), ("H", "G"), ("J", "I"), ("L", "K")]
     m = "MIN(" + ",".join(f"IF({c}{r+2}=0,1E+99,{c}{r+2})" for c, _ in cols) + ")"
     f = '""'
@@ -735,19 +792,19 @@ def minuta():
     campo(ws, 4, 4, "Hora inicio/fin", 2)
     campo(ws, 5, 1, "Lugar", 2)
     campo(ws, 5, 4, "Elaboró", 2)
-    ws.cell(7, 1, "ASISTENTES").font = Font(bold=True, color=COLOR)
+    ws.cell(7, 1, "ASISTENTES").font = Font(bold=True, color=PETROL)
     encabezado(ws, 8, ["No.", "Nombre", "Puesto / Área", "Firma", ""])
     filas(ws, 9, 16, 4, {}, {1: lambda r: r - 8})
-    ws.cell(18, 1, "ORDEN DEL DÍA").font = Font(bold=True, color=COLOR)
+    ws.cell(18, 1, "ORDEN DEL DÍA").font = Font(bold=True, color=PETROL)
     ws.merge_cells("A19:E22")
-    ws.cell(24, 1, "DESARROLLO / ACUERDOS").font = Font(bold=True, color=COLOR)
+    ws.cell(24, 1, "DESARROLLO / ACUERDOS").font = Font(bold=True, color=PETROL)
     ws.merge_cells("A25:E30")
     for rng in ("A19:E22", "A25:E30"):
         for row in ws[rng]:
             for c in row:
                 c.border = BORDE
                 c.fill = PatternFill("solid", fgColor=INPUT)
-    ws.cell(32, 1, "COMPROMISOS").font = Font(bold=True, color=COLOR)
+    ws.cell(32, 1, "COMPROMISOS").font = Font(bold=True, color=PETROL)
     encabezado(ws, 33, ["No.", "Actividad", "Responsable", "Fecha límite", "Estatus"])
     filas(ws, 34, 43, 5, {4: FECHA}, {1: lambda r: r - 33})
     lista(ws, "E34:E43", ["Pendiente", "En proceso", "Cumplido"])
@@ -812,7 +869,7 @@ def presupuesto():
         ws.cell(a, 17, f'=IF(N{a}=0,"",O{a}/N{a})').number_format = "0%"
         for k in range(14, 18):
             ws.cell(a, k).border = BORDE
-            ws.cell(a, k).fill = PatternFill("solid", fgColor="F2F2F2")
+            ws.cell(a, k).fill = PatternFill("solid", fgColor=CALC)
         ws.cell(a, 1).font = Font(bold=True)
     from openpyxl.formatting.rule import CellIsRule
     ws.conditional_formatting.add(f"P8:P{r}", CellIsRule(operator="greaterThan", formula=["0"], font=Font(color="C00000", bold=True)))
