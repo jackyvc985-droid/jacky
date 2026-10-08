@@ -18,9 +18,9 @@ LEMA = CFG.get("lema", "")
 
 # métricas por formato (px): margen lateral, margen superior, tipografías y alto de la barra de acción
 M = {
-    "1350": dict(px=64, top=54, h1=62, meta=26, body=25, cta=210, bottom=0, qr=96, btn=27, ct=22, chip=21),
+    "1350": dict(px=64, top=54, h1=62, meta=26, body=25, cta=196, bottom=0, qr=92, btn=27, ct=22, chip=21),
     "1080": dict(px=56, top=42, h1=52, meta=22, body=22, cta=214, bottom=0, qr=0, btn=25, ct=20, chip=21),
-    "1920": dict(px=64, top=150, h1=84, meta=32, body=31, cta=370, bottom=100, qr=112, btn=34, ct=28, chip=27),
+    "1920": dict(px=64, top=150, h1=84, meta=32, body=31, cta=340, bottom=80, qr=112, btn=34, ct=28, chip=27),
 }
 
 CSS = """
@@ -48,15 +48,14 @@ h1 em{font-style:normal;color:var(--hl)}
 .chip i{font-style:normal;color:%ACCT%;margin-right:8px}
 .auth{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;font-size:20px;color:var(--tx2);font-weight:700}
 .auth span:not(:last-child):after{content:"•";margin-left:10px;color:var(--hl)}
-.cta{position:absolute;left:0;right:0;bottom:%BOT%px;height:%CTA%px;background:#051526;border-top:5px solid #E69F00;padding:%CP%px %PX%px;display:flex;flex-direction:column;justify-content:center;gap:%CG%px;color:#fff}
+.cta{position:absolute;left:0;right:0;bottom:%BOT%px;height:%CTA%px;background:transparent;border-top:3px solid #E69F00;padding:%CP%px %PX%px;display:flex;flex-direction:column;justify-content:center;gap:%CG%px;color:var(--tx)}
 .cta .row{display:flex;align-items:center;justify-content:space-between;gap:24px}
 .btn{background:#E69F00;color:#0B2A4A;font-weight:800;font-size:%BTN%px;line-height:1.15;padding:%BP%px 34px;border-radius:999px}
-.cta .note{font-size:%CT%px;color:#E3EBF2;margin-top:8px}
-.cta .ct{font-size:%CT%px;font-weight:700;color:#fff;line-height:1.5;margin-top:10px}
-.cta .ct span{color:#E69F00;margin:0 8px}
-.qrw{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;width:%QRW%px;text-align:center}.qrw small{font-size:20px;line-height:1.15;color:#E3EBF2}
-.w:after{content:'';position:absolute;left:0;right:0;bottom:0;height:%BOT%px;background:#051526}
-.qr{width:%QR%px;height:%QR%px;border-radius:12px;background:#fff;padding:6px;flex:none}
+.cta .note{font-size:%CT%px;color:var(--tx2);margin-top:8px}
+.cta .ct{font-size:%CT%px;font-weight:700;color:var(--tx);line-height:1.5;margin-top:10px}
+.cta .ct span{color:#8A5E00;margin:0 8px}
+.qrw{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;width:%QRW%px;text-align:center}.qrw small{font-size:20px;line-height:1.15;color:var(--tx2)}
+.qr{width:%QR%px;height:%QR%px;border-radius:10px;background:#fff;border:2px solid var(--line);padding:4px;flex:none}
 .icb{width:64px;height:64px;border-radius:16px;display:flex;align-items:center;justify-content:center;flex:none;background:var(--accent);color:%ONACC%}
 .icb svg,.ic svg{width:60%;height:60%;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .ig svg{width:100%;height:100%;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
