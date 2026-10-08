@@ -1,0 +1,4 @@
+LOGO (assets/logo.png)
+- Se usa SOLO en el material de marketing (infografías y presentación en marketing/).
+- Los formatos de venta (Excel y Word en plantillas/ y ejemplos/) NO llevan logo: solo un recuadro "INSERTE SU LOGO" para el comprador.
+- Original recortado: assets/logo_original.png. Datos de contacto: assets/config_marca.json.
