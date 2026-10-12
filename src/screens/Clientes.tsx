@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { View } from 'react-native';
 import { uid, useStore } from '../store.tsx';
 import { Badge, Banner, Btn, Card, confirmAction, Empty, FormModal, H2, Muted, notify, Page, Row, T } from '../ui/kit.tsx';
 import { Client, DOC_CATEGORIES } from '../domain/types.ts';
 import { useDocFiles } from '../docs';
 import { api } from '../cloud';
+import { CLIENT_MODULES, ClientModule, DEFAULT_CLIENT_MODULES, MODULE_LABELS } from '../domain/permissions.ts';
 
 const fields = [
   { key: 'name', label: 'Nombre o razón social', required: true },
@@ -82,36 +84,60 @@ export default function Clientes({ onOpenDocs }: { onOpenDocs: (clientId: string
   );
 }
 
+const MODULE_OPTIONS = CLIENT_MODULES.map(m => ({ value: m, label: MODULE_LABELS[m] }));
+const MODULE_HINT = 'Por defecto el cliente solo ve documentos, proyectos y pendientes. Cifras, previsiones, obligaciones y nóminas solo se abren si las marcas. «Nóminas» incluye nombres de empleados, sueldos y recibos.';
+
 function CloudPortal({ clientId, email }: { clientId: string; email: string }) {
   const { session, setPreviewClientId } = useStore();
-  const [list, setList] = useState<{ pending: { email: string; clientId: string }[]; members: { email: string; clientId: string }[] } | null>(null);
+  type Entry = { email: string; clientId: string; modules: ClientModule[] };
+  const [list, setList] = useState<{ pending: Entry[]; members: Entry[] } | null>(null);
   const [inviting, setInviting] = useState(false);
+  const [editing, setEditing] = useState<Entry | null>(null);
   const [code, setCode] = useState<{ email: string; code: string } | null>(null);
   const s = session!;
   const load = () => api(s.apiUrl, s.token, 'GET', `/ws/${s.workspaceId}/invites`).then(setList).catch(e => notify(e.message));
   React.useEffect(() => { load(); }, [clientId]);
   const mine = (x: { clientId: string }) => x.clientId === clientId;
+  const labels = (ms: ClientModule[]) => ms.length ? ms.map(m => MODULE_LABELS[m]).join(', ') : 'ninguno';
+  const putModules = (e: Entry, v: Record<string, string>) =>
+    api(s.apiUrl, s.token, 'PUT', `/ws/${s.workspaceId}/invites/${encodeURIComponent(e.email)}/modules`, { modules: v.modules.split(',').filter(Boolean) }).then(() => { setEditing(null); load(); });
   return (
     <Card>
       <H2>Portal del cliente</H2>
       <Banner tone="info">La invitación asigna un correo a este expediente y genera un código de un solo uso. Debes compartir manualmente el código y el enlace de la app; no se envía correo automático.</Banner>
       {code && <Banner tone="warn">Código para {code.email}: {code.code} — cópialo ahora, no se vuelve a mostrar.</Banner>}
       {list?.members.filter(mine).map(m => (
-        <Row key={m.email}><T>{m.email}</T><Badge tone="ok" label="Con acceso" />
-          <Btn small kind="danger" label="Revocar" onPress={() => confirmAction(`¿Revocar acceso de ${m.email}?`, () => api(s.apiUrl, s.token, 'DELETE', `/ws/${s.workspaceId}/invites/${encodeURIComponent(m.email)}`).then(load).catch(e => notify(e.message)))} /></Row>
+        <View key={m.email} style={{ gap: 4, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
+          <Row><T bold>{m.email}</T><Badge tone="ok" label="Con acceso" /></Row>
+          <Muted>Ve: {labels(m.modules)}</Muted>
+          <Row>
+            <Btn small kind="ghost" label="Cambiar accesos" onPress={() => setEditing(m)} />
+            <Btn small kind="danger" label="Revocar" onPress={() => confirmAction(`¿Revocar acceso de ${m.email}?`, () => api(s.apiUrl, s.token, 'DELETE', `/ws/${s.workspaceId}/invites/${encodeURIComponent(m.email)}`).then(load).catch(e => notify(e.message)))} />
+          </Row>
+        </View>
       ))}
       {list?.pending.filter(mine).map(m => (
-        <Row key={m.email}><T>{m.email}</T><Badge tone="warn" label="Invitación pendiente" />
-          <Btn small kind="danger" label="Cancelar" onPress={() => api(s.apiUrl, s.token, 'DELETE', `/ws/${s.workspaceId}/invites/${encodeURIComponent(m.email)}`).then(load).catch(e => notify(e.message))} /></Row>
+        <View key={m.email} style={{ gap: 4, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' }}>
+          <Row><T bold>{m.email}</T><Badge tone="warn" label="Invitación pendiente" /></Row>
+          <Muted>Verá: {labels(m.modules)}</Muted>
+          <Row>
+            <Btn small kind="ghost" label="Cambiar accesos" onPress={() => setEditing(m)} />
+            <Btn small kind="danger" label="Cancelar" onPress={() => api(s.apiUrl, s.token, 'DELETE', `/ws/${s.workspaceId}/invites/${encodeURIComponent(m.email)}`).then(load).catch(e => notify(e.message))} />
+          </Row>
+        </View>
       ))}
       <Btn small label="Invitar al portal" onPress={() => setInviting(true)} />
       <Btn small kind="ghost" label="Vista previa como cliente" onPress={() => setPreviewClientId(clientId)} />
-      <Muted>La vista previa no modifica los permisos reales.</Muted>
-      {inviting && <FormModal title="Invitar al portal" fields={[{ key: 'email', label: 'Correo del cliente', required: true }]} initial={{ email }} onClose={() => setInviting(false)}
+      <Muted>La vista previa muestra los módulos predeterminados y no modifica los permisos reales.</Muted>
+      {inviting && <FormModal title="Invitar al portal" initial={{ email, modules: DEFAULT_CLIENT_MODULES.join(',') }} onClose={() => setInviting(false)}
+        fields={[{ key: 'email', label: 'Correo del cliente', required: true }, { key: 'modules', label: 'Qué podrá ver', type: 'multi', options: MODULE_OPTIONS, hint: MODULE_HINT }]}
         onSubmit={async v => {
-          const r = await api<{ code: string; email: string }>(s.apiUrl, s.token, 'POST', `/ws/${s.workspaceId}/invites`, { email: v.email.trim(), clientId });
+          const r = await api<{ code: string; email: string }>(s.apiUrl, s.token, 'POST', `/ws/${s.workspaceId}/invites`, { email: v.email.trim(), clientId, modules: v.modules.split(',').filter(Boolean) });
           setCode(r); setInviting(false); load();
         }} />}
+      {editing && <FormModal title={`Accesos de ${editing.email}`} initial={{ modules: editing.modules.join(',') }} onClose={() => setEditing(null)}
+        fields={[{ key: 'modules', label: 'Qué puede ver', type: 'multi', options: MODULE_OPTIONS, hint: MODULE_HINT }]}
+        onSubmit={v => putModules(editing, v)} />}
     </Card>
   );
 }

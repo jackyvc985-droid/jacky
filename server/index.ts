@@ -3,7 +3,8 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { clientView } from '../src/domain/permissions.ts';
+import { clientView, parseModules, sanitizeModules } from '../src/domain/permissions.ts';
+import { validateUpload, safeFileName } from '../src/domain/uploads.ts';
 import { emptyData } from '../src/domain/types.ts';
 import type { Data } from '../src/domain/types.ts';
 import { consultaSat } from './sat.ts';
@@ -11,6 +12,7 @@ import { consultaSat } from './sat.ts';
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), 'server-data');
 const PORT = Number(process.env.PORT ?? 8787);
 const ORIGINS = (process.env.ALLOWED_ORIGINS ?? '*').split(',').map((s: string) => s.trim());
+const RATE_LIMIT = Number(process.env.RATE_LIMIT ?? 10); // intentos por 15 min (registro, inicio de sesión, borrado)
 const MAX_JSON = 20 * 1024 * 1024, MAX_FILE = 25 * 1024 * 1024, SESSION_DAYS = 30, ORPHAN_GRACE_MS = 3600_000;
 
 fs.mkdirSync(path.join(DATA_DIR, 'files'), { recursive: true });
@@ -25,6 +27,14 @@ CREATE TABLE IF NOT EXISTS invites(id TEXT PRIMARY KEY, workspace_id TEXT NOT NU
 CREATE TABLE IF NOT EXISTS files(workspace_id TEXT NOT NULL, key TEXT NOT NULL, name TEXT NOT NULL, mime TEXT NOT NULL, size INTEGER NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(workspace_id,key));
 CREATE TABLE IF NOT EXISTS audit(id INTEGER PRIMARY KEY AUTOINCREMENT, workspace_id TEXT, user_id TEXT, action TEXT NOT NULL, detail TEXT, at TEXT NOT NULL);
 `);
+
+// Migraciones aditivas (nunca borran columnas ni datos).
+for (const sql of [
+  'ALTER TABLE members ADD COLUMN modules TEXT',
+  'ALTER TABLE invites ADD COLUMN modules TEXT',
+  'ALTER TABLE files ADD COLUMN sha256 TEXT',
+  'ALTER TABLE files ADD COLUMN mime_detected TEXT',
+]) { try { db.exec(sql); } catch { /* la columna ya existe */ } }
 
 const id = () => crypto.randomBytes(9).toString('base64url');
 const sha = (s: string) => crypto.createHash('sha256').update(s).digest('hex');
@@ -49,7 +59,7 @@ const attempts = new Map<string, { n: number; reset: number }>();
 function throttle(key: string) {
   const t = Date.now(), a = attempts.get(key);
   if (!a || a.reset < t) { attempts.set(key, { n: 1, reset: t + 15 * 60_000 }); return; }
-  if (++a.n > 10) throw new HttpError(429, 'Demasiados intentos. Espera 15 minutos.');
+  if (++a.n > RATE_LIMIT) throw new HttpError(429, 'Demasiados intentos. Espera 15 minutos.');
 }
 
 function readBody(req: http.IncomingMessage, limit: number): Promise<Buffer> {
@@ -81,9 +91,9 @@ const memberships = (userId: string) =>
   db.prepare('SELECT m.workspace_id AS workspaceId, w.name, m.role, m.client_id AS clientId FROM members m JOIN workspaces w ON w.id=m.workspace_id WHERE m.user_id=?').all(userId);
 
 function member(a: Auth, ws: string) {
-  const m = db.prepare('SELECT role, client_id AS clientId FROM members WHERE workspace_id=? AND user_id=?').get(ws, a.userId) as { role: string; clientId: string } | undefined;
+  const m = db.prepare('SELECT role, client_id AS clientId, modules FROM members WHERE workspace_id=? AND user_id=?').get(ws, a.userId) as { role: string; clientId: string; modules: string | null } | undefined;
   if (!m) throw new HttpError(404, 'Espacio no encontrado'); // no revela si existe
-  return m;
+  return { role: m.role, clientId: m.clientId, modules: parseModules(m.modules) };
 }
 const owner = (a: Auth, ws: string) => { const m = member(a, ws); if (m.role !== 'propietario') throw new HttpError(403, 'Solo el propietario'); return m; };
 const wsRow = (ws: string) => db.prepare('SELECT rev, data FROM workspaces WHERE id=?').get(ws) as { rev: number; data: string };
@@ -135,13 +145,13 @@ const routes: Handler = async (req, res, p, url) => {
       const userId = id(); const { salt, hash } = hashPassword(pw);
       db.prepare('INSERT INTO users VALUES(?,?,?,?,?)').run(userId, email, salt, hash, now());
       if (invite) {
-        db.prepare('INSERT INTO members VALUES(?,?,?,?)').run(invite.workspace_id, userId, 'cliente', invite.client_id);
+        db.prepare('INSERT INTO members(workspace_id,user_id,role,client_id,modules) VALUES(?,?,?,?,?)').run(invite.workspace_id, userId, 'cliente', invite.client_id, invite.modules ?? JSON.stringify(sanitizeModules(null)));
         db.prepare('UPDATE invites SET used_at=? WHERE id=?').run(now(), invite.id);
         audit(invite.workspace_id, userId, 'invite.accepted', email);
       } else {
         const wsId = id();
         db.prepare('INSERT INTO workspaces VALUES(?,?,?,?,?)').run(wsId, String(b.workspaceName ?? 'Mi despacho').slice(0, 80), 1, JSON.stringify(emptyData()), now());
-        db.prepare('INSERT INTO members VALUES(?,?,?,?)').run(wsId, userId, 'propietario', '');
+        db.prepare('INSERT INTO members(workspace_id,user_id,role,client_id) VALUES(?,?,?,?)').run(wsId, userId, 'propietario', '');
         audit(wsId, userId, 'workspace.created', email);
       }
       return { token: newSession(userId), email, memberships: memberships(userId) };
@@ -167,7 +177,7 @@ const routes: Handler = async (req, res, p, url) => {
       const a = auth(req); const b = await readJson(req);
       const inv = db.prepare('SELECT * FROM invites WHERE email=? AND code_hash=? AND used_at IS NULL').get(a.email, sha(String(b.inviteCode ?? '').trim().toUpperCase())) as any;
       if (!inv) throw new HttpError(400, 'Código de invitación inválido para esta cuenta');
-      db.prepare('INSERT OR REPLACE INTO members VALUES(?,?,?,?)').run(inv.workspace_id, a.userId, 'cliente', inv.client_id);
+      db.prepare('INSERT OR REPLACE INTO members(workspace_id,user_id,role,client_id,modules) VALUES(?,?,?,?,?)').run(inv.workspace_id, a.userId, 'cliente', inv.client_id, inv.modules ?? JSON.stringify(sanitizeModules(null)));
       db.prepare('UPDATE invites SET used_at=? WHERE id=?').run(now(), inv.id);
       audit(inv.workspace_id, a.userId, 'invite.accepted', a.email);
       return { memberships: memberships(a.userId) };
@@ -215,7 +225,7 @@ const routes: Handler = async (req, res, p, url) => {
     if (p[2] === 'data') {
       if (method === 'GET') {
         const r = wsRow(ws); const d = parseData(r.data);
-        return { rev: r.rev, role: m.role, clientId: m.clientId, data: m.role === 'propietario' ? d : clientView(d, m.clientId) };
+        return { rev: r.rev, role: m.role, clientId: m.clientId, modules: m.role === 'propietario' ? null : m.modules, data: m.role === 'propietario' ? d : clientView(d, m.clientId, m.modules) };
       }
       if (method === 'PUT') {
         owner(a, ws);
@@ -235,16 +245,20 @@ const routes: Handler = async (req, res, p, url) => {
       if (method === 'PUT') {
         owner(a, ws);
         const buf = await readBody(req, MAX_FILE);
+        const name = safeFileName(decodeURIComponent(String(req.headers['x-name'] ?? 'archivo')));
+        const chk = validateUpload(name, buf);
+        if (!chk.ok) throw new HttpError(415, chk.error);
+        const sha = crypto.createHash('sha256').update(buf).digest('hex');
         fs.mkdirSync(path.dirname(fp), { recursive: true }); fs.writeFileSync(fp, buf);
-        const name = decodeURIComponent(String(req.headers['x-name'] ?? 'archivo')).slice(0, 200);
-        db.prepare('INSERT OR REPLACE INTO files VALUES(?,?,?,?,?,?)').run(ws, key, name, String(req.headers['x-mime'] ?? ''), buf.length, Date.now());
+        db.prepare('INSERT OR REPLACE INTO files(workspace_id,key,name,mime,size,created_at,sha256,mime_detected) VALUES(?,?,?,?,?,?,?,?)').run(ws, key, name, chk.mime, buf.length, Date.now(), sha, chk.mime);
         audit(ws, a.userId, 'file.uploaded', key);
-        return { ok: true };
+        return { ok: true, sha256: sha, mime: chk.mime };
       }
       if (method === 'GET') {
-        const d = parseData(wsRow(ws).data);
+        const full = parseData(wsRow(ws).data);
+        const d = m.role === 'propietario' ? full : clientView(full, m.clientId, m.modules); // mismas reglas que la lista de documentos
         const doc = d.docs.find(x => x.fileKey === key);
-        if (!doc || (m.role !== 'propietario' && doc.clientId !== m.clientId)) throw new HttpError(404, 'Archivo no encontrado');
+        if (!doc) throw new HttpError(404, 'Archivo no encontrado');
         if (!fs.existsSync(fp)) throw new HttpError(404, 'El archivo no existe en el servidor');
         audit(ws, a.userId, 'file.downloaded', key);
         return { __raw: fs.readFileSync(fp), name: doc.name, mime: doc.mime };
@@ -260,13 +274,20 @@ const routes: Handler = async (req, res, p, url) => {
 
     if (p[2] === 'portal' && p[3] === 'upload' && method === 'POST') { // el cliente sube a SU expediente
       if (m.role !== 'cliente') throw new HttpError(403, 'Solo clientes del portal');
+      if (!m.modules.includes('documentos')) throw new HttpError(403, 'Tu acceso no incluye documentos');
       const buf = await readBody(req, MAX_FILE);
+      const h = (n: string) => decodeURIComponent(String(req.headers[n] ?? ''));
+      const name = safeFileName(h('x-name') || 'archivo');
+      const chk = validateUpload(name, buf);
+      if (!chk.ok) throw new HttpError(415, chk.error);
+      const category = h('x-category').slice(0, 80) || 'Otro';
+      if (category === 'Nómina' && !m.modules.includes('nominas')) throw new HttpError(403, 'Tu acceso no incluye documentos de nómina');
       const key = id();
       const fp = filePath(ws, key);
+      const sha = crypto.createHash('sha256').update(buf).digest('hex');
       fs.mkdirSync(path.dirname(fp), { recursive: true }); fs.writeFileSync(fp, buf);
-      const h = (n: string) => decodeURIComponent(String(req.headers[n] ?? ''));
-      const doc = { id: id(), clientId: m.clientId, category: h('x-category').slice(0, 80) || 'Otro', period: h('x-period').slice(0, 7), name: h('x-name').slice(0, 200) || 'archivo', mime: h('x-mime').slice(0, 100), size: buf.length, fileKey: key, status: 'En revisión', createdAt: now(), uploadedBy: 'cliente' };
-      db.prepare('INSERT INTO files VALUES(?,?,?,?,?,?)').run(ws, key, doc.name, doc.mime, buf.length, Date.now());
+      const doc = { id: id(), clientId: m.clientId, category, period: h('x-period').slice(0, 7), name, mime: chk.mime, size: buf.length, fileKey: key, status: 'En revisión', createdAt: now(), uploadedBy: 'cliente', sha256: sha };
+      db.prepare('INSERT INTO files(workspace_id,key,name,mime,size,created_at,sha256,mime_detected) VALUES(?,?,?,?,?,?,?,?)').run(ws, key, name, chk.mime, buf.length, Date.now(), sha, chk.mime);
       const r = wsRow(ws); const d = parseData(r.data); d.docs.push(doc as never);
       db.prepare('UPDATE workspaces SET data=?, rev=rev+1 WHERE id=?').run(JSON.stringify(d), ws);
       audit(ws, a.userId, 'portal.upload', key);
@@ -282,15 +303,27 @@ const routes: Handler = async (req, res, p, url) => {
         if (!/^\S+@\S+\.\S+$/.test(email)) throw new HttpError(400, 'Correo inválido');
         if (!parseData(wsRow(ws).data).clients.some(c => c.id === clientId)) throw new HttpError(400, 'Cliente inexistente');
         const code = crypto.randomBytes(5).toString('hex').toUpperCase(); // se comparte manualmente
+        const modules = sanitizeModules(b.modules); // si no se indica, el mínimo
         db.prepare('DELETE FROM invites WHERE workspace_id=? AND email=? AND used_at IS NULL').run(ws, email);
-        db.prepare('INSERT INTO invites VALUES(?,?,?,?,?,?,NULL)').run(id(), ws, email, clientId, sha(code), now());
-        audit(ws, a.userId, 'invite.created', email);
-        return { code, email };
+        db.prepare('INSERT INTO invites(id,workspace_id,email,client_id,code_hash,created_at,used_at,modules) VALUES(?,?,?,?,?,?,NULL,?)').run(id(), ws, email, clientId, sha(code), now(), JSON.stringify(modules));
+        audit(ws, a.userId, 'invite.created', `${email} módulos:${modules.join(',')}`);
+        return { code, email, modules };
       }
       if (method === 'GET') {
-        const pend = db.prepare('SELECT email, client_id AS clientId, created_at AS createdAt FROM invites WHERE workspace_id=? AND used_at IS NULL').all(ws);
-        const mem = db.prepare("SELECT u.email, m.client_id AS clientId FROM members m JOIN users u ON u.id=m.user_id WHERE m.workspace_id=? AND m.role='cliente'").all(ws);
+        const pend = (db.prepare('SELECT email, client_id AS clientId, created_at AS createdAt, modules FROM invites WHERE workspace_id=? AND used_at IS NULL').all(ws) as any[]).map(r => ({ ...r, modules: parseModules(r.modules) }));
+        const mem = (db.prepare("SELECT u.email, m.client_id AS clientId, m.modules FROM members m JOIN users u ON u.id=m.user_id WHERE m.workspace_id=? AND m.role='cliente'").all(ws) as any[]).map(r => ({ ...r, modules: parseModules(r.modules) }));
         return { pending: pend, members: mem };
+      }
+      if (method === 'PUT' && p[3] && p[4] === 'modules') { // el propietario cambia lo que ve un cliente (efecto inmediato)
+        const email = decodeURIComponent(p[3]).toLowerCase();
+        const b = await readJson(req);
+        const modules = JSON.stringify(sanitizeModules(b.modules));
+        const u = db.prepare('SELECT id FROM users WHERE email=?').get(email) as any;
+        const r1 = u ? db.prepare("UPDATE members SET modules=? WHERE workspace_id=? AND user_id=? AND role='cliente'").run(modules, ws, u.id) : { changes: 0 };
+        const r2 = db.prepare('UPDATE invites SET modules=? WHERE workspace_id=? AND email=? AND used_at IS NULL').run(modules, ws, email);
+        if (!r1.changes && !r2.changes) throw new HttpError(404, 'No hay invitación ni acceso para ese correo');
+        audit(ws, a.userId, 'access.modules', `${email} módulos:${JSON.parse(modules).join(',')}`);
+        return { ok: true, modules: JSON.parse(modules) };
       }
       if (method === 'DELETE' && p[3]) { // revocar acceso y sesiones del correo
         const email = decodeURIComponent(p[3]).toLowerCase();

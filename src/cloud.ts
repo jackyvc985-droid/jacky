@@ -1,4 +1,5 @@
 import type { Data } from './domain/types.ts';
+import type { ClientModule } from './domain/permissions.ts';
 
 export type Membership = { workspaceId: string; name: string; role: 'propietario' | 'cliente'; clientId: string };
 export type Session = { apiUrl: string; token: string; email: string; memberships: Membership[]; workspaceId: string };
@@ -39,11 +40,11 @@ export async function apiBytes(apiUrl: string, token: string, path: string): Pro
   return new Uint8Array(await res.arrayBuffer());
 }
 
-export type CloudData = { rev: number; role: 'propietario' | 'cliente'; clientId: string; data: Data };
+export type CloudData = { rev: number; role: 'propietario' | 'cliente'; clientId: string; modules: ClientModule[] | null; data: Data };
 export const fetchData = (s: Session) => api<CloudData>(s.apiUrl, s.token, 'GET', `/ws/${s.workspaceId}/data`);
 export const putData = (s: Session, baseRev: number, data: Data) => api<{ rev: number }>(s.apiUrl, s.token, 'PUT', `/ws/${s.workspaceId}/data`, { baseRev, data });
 export const putFileCloud = (s: Session, key: string, bytes: Uint8Array, name: string, mime: string) =>
-  api(s.apiUrl, s.token, 'PUT', `/ws/${s.workspaceId}/files/${key}`, bytes, { 'x-name': encodeURIComponent(name), 'x-mime': mime || '' });
+  api<{ ok: boolean; sha256: string; mime: string }>(s.apiUrl, s.token, 'PUT', `/ws/${s.workspaceId}/files/${key}`, bytes, { 'x-name': encodeURIComponent(name), 'x-mime': mime || '' });
 export const getFileCloud = (s: Session, key: string) => apiBytes(s.apiUrl, s.token, `/ws/${s.workspaceId}/files/${key}`);
 export const deleteFileCloud = (s: Session, key: string) => api(s.apiUrl, s.token, 'DELETE', `/ws/${s.workspaceId}/files/${key}`);
 export const portalUpload = (s: Session, bytes: Uint8Array, h: { name: string; mime: string; category: string; period: string }) =>

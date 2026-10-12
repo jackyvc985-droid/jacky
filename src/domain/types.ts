@@ -10,6 +10,7 @@ export type DocStatus = 'Pendiente' | 'En revisión' | 'Completo';
 export type Doc = {
   id: Id; clientId: Id; category: string; period: string; name: string; mime: string; size: number;
   fileKey: string; status: DocStatus; createdAt: string; uploadedBy: 'despacho' | 'cliente';
+  sha256?: string; // huella calculada por el servidor al recibir el archivo
 };
 
 export type Task = { id: Id; title: string; clientId: Id | ''; projectId: Id | ''; due: string; done: boolean };
@@ -37,14 +38,17 @@ export type Payroll = {
 };
 export type ObligationStatus = 'Pendiente' | 'Presentada' | 'Pagada';
 export type Obligation = { id: Id; name: string; clientId: Id | ''; dueDate: string; amountCents: number; status: ObligationStatus };
+/** Cobro o pago esperado. Previsión, no saldo bancario ni movimiento registrado. */
+export type ForecastStatus = 'Pendiente' | 'Liquidado' | 'Cancelado';
+export type Forecast = { id: Id; concept: string; kind: 'cobro' | 'pago'; amountCents: number; dueDate: string; clientId: Id | ''; category: string; status: ForecastStatus; note: string };
 export type Invite = { email: string; clientId: Id; createdAt: string };
 export type Proposal = { plan: string; priceMXN: number; createdAt: string };
 
 export type Data = {
   clients: Client[]; docs: Doc[]; tasks: Task[]; projects: Project[]; movements: Movement[];
-  budgets: Budget[]; payrolls: Payroll[]; obligations: Obligation[]; invites: Invite[]; proposals: Proposal[];
+  budgets: Budget[]; payrolls: Payroll[]; obligations: Obligation[]; forecasts: Forecast[]; invites: Invite[]; proposals: Proposal[];
 };
 export const emptyData = (): Data => ({
-  clients: [], docs: [], tasks: [], projects: [], movements: [], budgets: [], payrolls: [], obligations: [], invites: [], proposals: [],
+  clients: [], docs: [], tasks: [], projects: [], movements: [], budgets: [], payrolls: [], obligations: [], forecasts: [], invites: [], proposals: [],
 });
 export type Mode = 'demo' | 'local' | 'cloud';

@@ -1,10 +1,10 @@
 # Dependencias de terceros y licencias
 
-Generado con `node scripts/licenses.mjs` a partir de `package-lock.json` (solo dependencias de producción: 519). **Es un inventario automático, no un dictamen legal**: revísalo con un especialista antes de publicar, sobre todo las filas marcadas.
+Generado con `node scripts/licenses.mjs` a partir de `package-lock.json` (solo dependencias de producción: 520). **Es un inventario automático, no un dictamen legal**: revísalo con un especialista antes de publicar, sobre todo las filas marcadas.
 
 ## Resumen por licencia
 
-- MIT: 442
+- MIT: 443
 - ISC: 29
 - MPL-2.0: 12
 - Apache-2.0: 10
@@ -295,6 +295,7 @@ Generado con `node scripts/licenses.mjs` a partir de `package-lock.json` (solo d
 | fbjs-css-vars | 1.0.2 | MIT |
 | fdir | 6.5.0 | MIT |
 | fetch-nodeshim | 0.4.10 | MIT |
+| fflate | 0.8.3 | MIT |
 | fill-range | 7.1.1 | MIT |
 | finalhandler | 1.1.2 | MIT |
 | flow-enums-runtime | 0.0.6 | MIT |

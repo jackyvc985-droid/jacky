@@ -43,7 +43,7 @@ Describe lo que el código hace hoy. **Revísalo contra el build final y los pro
 El control de las cuentas no prueba por sí solo la titularidad del código, la marca o materiales de terceros.
 - Historial de versiones (git) y registro de **contribuciones humanas** por persona, con fechas.
 - **Contratos escritos** con cada desarrollador, diseñador o proveedor: obra y entregables, materiales preexistentes, cesión o licencia, modificación/distribución, plazo, territorio, confidencialidad. Revisar con abogado la situación de empleados y obras por encargo.
-- Inventario de dependencias y licencias (este repo) más fuentes, iconos, imágenes y SDK que no estén en `package.json`. El icono actual (`assets/icon.png`) es provisional.
+- Inventario de dependencias y licencias (este repo) más fuentes, iconos, imágenes y SDK que no estén en `package.json`. Los íconos y el monograma (`assets/`) son los del kit de Canville; disponer de ellos no acredita registro de marca.
 - Si se usó IA para generar código o materiales: documentar la intervención humana original; no declarar autoría ni exclusividad que los términos aplicables no garanticen.
 - Registro de programa de cómputo (INDAUTOR) y de marca/logotipo (IMPI, con búsqueda de antecedentes y clases) son trámites distintos; los hace Canville con especialista.
 

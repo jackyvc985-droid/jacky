@@ -30,7 +30,8 @@ export default function Presupuestos() {
           <View style={{ height: 8, backgroundColor: '#e5e7eb', borderRadius: 4, overflow: 'hidden' }}>
             <View style={{ width: `${Math.min(100, a.pct)}%`, height: 8, backgroundColor: a.level === 'excedido' ? theme.bad : a.level === 'cerca' ? theme.warn : theme.ok }} />
           </View>
-          <T>{formatMXN(a.spentCents)} de {formatMXN(a.budget.limitCents)} ({Math.round(a.pct)}%)</T>
+          <T>{formatMXN(a.spentCents)} de {formatMXN(a.budget.limitCents)} · {Math.round(a.pct)} % utilizado</T>
+          {a.level === 'excedido' && <T bold style={{ color: theme.bad }}>{a.excess === null ? 'Gasto sin presupuesto asignado' : `${Math.round(a.excess)} % por encima del presupuesto (excede ${formatMXN(a.spentCents - a.budget.limitCents)})`}</T>}
           <Row><Btn small kind="ghost" label="Editar" onPress={() => setEdit(a.budget)} /><Btn small kind="danger" label="Eliminar" onPress={() => remove('budgets', x => budgetKey(x) === budgetKey(a.budget))} /></Row>
         </Card>
       ))}

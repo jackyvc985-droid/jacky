@@ -23,7 +23,7 @@ export function trend(ms: Movement[], endPeriod: string, n = 6) {
   return lastPeriods(endPeriod, n).map(p => ({ period: p, ...totals(ms.filter(m => periodOf(m.date) === p)) }));
 }
 
-export type BudgetAlert = { budget: Budget; spentCents: number; pct: number; level: 'ok' | 'cerca' | 'excedido' };
+export type BudgetAlert = { budget: Budget; spentCents: number; pct: number; excess: number | null; level: 'ok' | 'cerca' | 'excedido' };
 
 export function budgetAlerts(budgets: Budget[], ms: Movement[]): BudgetAlert[] {
   return budgets.map(b => {
@@ -31,7 +31,7 @@ export function budgetAlerts(budgets: Budget[], ms: Movement[]): BudgetAlert[] {
       .filter(m => m.type === 'gasto' && m.category === b.category && periodOf(m.date) === b.period && (!b.clientId || m.clientId === b.clientId))
       .reduce((s, m) => s + m.amountCents, 0);
     const pct = b.limitCents > 0 ? (spent / b.limitCents) * 100 : 0;
-    return { budget: b, spentCents: spent, pct, level: pct > 100 ? 'excedido' : pct >= 80 ? 'cerca' : 'ok' };
+    return { budget: b, spentCents: spent, pct, excess: b.limitCents > 0 ? ((spent - b.limitCents) / b.limitCents) * 100 : spent > 0 ? null : 0, level: spent > b.limitCents ? 'excedido' : pct >= 80 ? 'cerca' : 'ok' };
   });
 }
 

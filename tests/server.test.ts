@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
 
+process.env.RATE_LIMIT = '1000';
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'canville-'));
 const { createServer } = await import('../server/index.ts');
 const srv = createServer();
@@ -18,6 +21,7 @@ const call = async (method: string, p: string, token?: string, body?: unknown, h
   return { status: r.status, json: ct.includes('json') ? await r.json() : null, buf: ct.includes('json') ? null : Buffer.from(await r.arrayBuffer()) };
 };
 
+const PDF = (t: string) => Buffer.from(`%PDF-1.4\n${t}`);
 let ownerTok = '', ws = '', clientTok = '';
 
 test('registro, login y rechazo sin sesión', async () => {
@@ -43,14 +47,14 @@ test('revisión optimista: el segundo guardado con revisión vieja recibe 409', 
 });
 
 test('archivos: propietario sube; documento indexado; descarga con autorización', async () => {
-  const put = await call('PUT', `/ws/${ws}/files/archivo1234`, ownerTok, Buffer.from('contenido'), { 'x-name': 'a.pdf', 'x-mime': 'application/pdf' });
+  const put = await call('PUT', `/ws/${ws}/files/archivo1234`, ownerTok, PDF('contenido'), { 'x-name': 'a.pdf', 'x-mime': 'application/pdf' });
   assert.equal(put.status, 200);
   const g = await call('GET', `/ws/${ws}/data`, ownerTok);
   g.json.data.docs = [{ id: 'd1', clientId: 'c1', category: 'Acuse', period: '2026-01', name: 'a.pdf', mime: 'application/pdf', size: 9, fileKey: 'archivo1234', status: 'Completo', createdAt: '', uploadedBy: 'despacho' },
     { id: 'd2', clientId: 'c2', category: 'Acuse', period: '2026-01', name: 'b.pdf', mime: '', size: 1, fileKey: 'archivo5678', status: 'Completo', createdAt: '', uploadedBy: 'despacho' }];
   assert.equal((await call('PUT', `/ws/${ws}/data`, ownerTok, { baseRev: g.json.rev, data: g.json.data })).status, 200);
   const d = await call('GET', `/ws/${ws}/files/archivo1234`, ownerTok);
-  assert.equal(d.buf!.toString(), 'contenido');
+  assert.ok(d.buf!.toString().endsWith('contenido'));
 });
 
 test('portal: invitación con código, vista filtrada, sin escritura, sin ver otros expedientes', async () => {
@@ -76,7 +80,7 @@ test('portal: invitación con código, vista filtrada, sin escritura, sin ver ot
 });
 
 test('el cliente sube a su expediente y queda En revisión', async () => {
-  const up = await call('POST', `/ws/${ws}/portal/upload`, clientTok, Buffer.from('xyz'), { 'x-name': 'cfdi.xml', 'x-mime': 'text/xml', 'x-category': 'CFDI/Factura', 'x-period': '2026-02' });
+  const up = await call('POST', `/ws/${ws}/portal/upload`, clientTok, Buffer.from('<?xml version="1.0"?><a/>'), { 'x-name': 'cfdi.xml', 'x-mime': 'text/xml', 'x-category': 'CFDI/Factura', 'x-period': '2026-02' });
   assert.equal(up.status, 200);
   assert.equal(up.json.doc.status, 'En revisión');
   assert.equal(up.json.doc.clientId, 'c1');
@@ -109,7 +113,7 @@ test('eliminación de cuenta: exige contraseña; cliente sale sin tocar al despa
   const g = await call('GET', `/ws/${w}/data`, tok);
   g.json.data.clients = [{ id: 'k1', name: 'K', rfc: '', email: '', phone: '', status: 'Activo', notes: '' }];
   await call('PUT', `/ws/${w}/data`, tok, { baseRev: g.json.rev, data: g.json.data });
-  await call('PUT', `/ws/${w}/files/archivoXYZ1`, tok, Buffer.from('x'), { 'x-name': 'a' });
+  await call('PUT', `/ws/${w}/files/archivoXYZ1`, tok, PDF('x'), { 'x-name': 'a.pdf' });
   const inv = await call('POST', `/ws/${w}/invites`, tok, { email: 'cli-borra@x.co', clientId: 'k1' });
   const c = await call('POST', '/auth/register', undefined, { email: 'cli-borra@x.co', password: 'contraseña-larga-1', inviteCode: inv.json.code });
 
@@ -125,4 +129,90 @@ test('eliminación de cuenta: exige contraseña; cliente sale sin tocar al despa
   assert.equal((await call('DELETE', '/me', tok, { password: 'contraseña-larga-1', deleteOwnedWorkspaces: true })).status, 200);
   assert.equal(fs.existsSync(path.join(process.env.DATA_DIR!, 'files', w)), false);
   assert.equal((await call('GET', `/ws/${w}/data`, tok)).status, 401);
+});
+
+test('subidas: contenido y extensión se validan; se calcula huella; nombres sin rutas', async () => {
+  const o = await call('POST', '/auth/register', undefined, { email: 'valida@x.co', password: 'contraseña-larga-1' });
+  const tok = o.json.token, w = o.json.memberships[0].workspaceId;
+  const put = (key: string, body: Buffer, name: string) => call('PUT', `/ws/${w}/files/${key}`, tok, body, { 'x-name': encodeURIComponent(name) });
+  assert.equal((await put('malo00001', Buffer.from('MZ\x90\x00 programa'), 'factura.pdf')).status, 415);      // ejecutable disfrazado de PDF
+  assert.equal((await put('malo00002', PDF('x'), 'programa.exe')).status, 415);                              // extensión no permitida
+  assert.equal((await put('malo00003', Buffer.from(''), 'vacio.pdf')).status, 415);
+  assert.equal((await put('malo00004', Buffer.from('<script>alert(1)</script>'), 'x.svg')).status, 415);
+  const ok = await put('bueno0001', PDF('hola'), '../../etc/pasa.pdf');
+  assert.equal(ok.status, 200);
+  assert.equal(ok.json.sha256, createHash('sha256').update(PDF('hola')).digest('hex'));
+  assert.equal(ok.json.mime, 'application/pdf');
+  assert.equal(fs.existsSync(path.join(process.env.DATA_DIR!, 'files', w, 'malo00001')), false);              // lo rechazado no se guarda
+  const b = await call('GET', `/ws/${w}/backup`, tok);
+  assert.equal(b.json.files.find((f: any) => f.key === 'bueno0001').name, 'pasa.pdf');                        // sin ../
+});
+
+test('portal: mínimo privilegio por defecto (sin nómina ni cifras), notas internas ocultas, módulos ajustables', async () => {
+  const o = await call('POST', '/auth/register', undefined, { email: 'mod@x.co', password: 'contraseña-larga-1' });
+  const tok = o.json.token, w = o.json.memberships[0].workspaceId;
+  const g = await call('GET', `/ws/${w}/data`, tok);
+  const d = g.json.data;
+  d.clients = [{ id: 'k1', name: 'K1', rfc: '', email: '', phone: '', status: 'Activo', notes: 'NOTA INTERNA: cliente moroso' }, { id: 'k2', name: 'K2', rfc: '', email: '', phone: '', status: 'Activo', notes: '' }];
+  d.payrolls = [{ id: 'n1', employee: 'Ana', clientId: 'k1', period: '2026-01', perceptionsCents: 100000, deductionsCents: 10000 }];
+  d.movements = [{ id: 'm1', date: '2026-01-02', type: 'ingreso', concept: 'x', category: 'x', amountCents: 5000, clientId: 'k1' }];
+  d.forecasts = [{ id: 'f1', concept: 'x', kind: 'cobro', amountCents: 100, dueDate: '2026-02-01', clientId: 'k1', category: 'x', status: 'Pendiente', note: '' }];
+  d.docs = [
+    { id: 'dn', clientId: 'k1', category: 'Nómina', period: '2026-01', name: 'recibo.pdf', mime: '', size: 1, fileKey: 'nomina0001', status: 'Completo', createdAt: '', uploadedBy: 'despacho' },
+    { id: 'dc', clientId: 'k1', category: 'Acuse', period: '2026-01', name: 'acuse.pdf', mime: '', size: 1, fileKey: 'acuse00001', status: 'Completo', createdAt: '', uploadedBy: 'despacho' },
+  ];
+  await call('PUT', `/ws/${w}/files/nomina0001`, tok, PDF('recibo'), { 'x-name': 'recibo.pdf' });
+  await call('PUT', `/ws/${w}/files/acuse00001`, tok, PDF('acuse'), { 'x-name': 'acuse.pdf' });
+  assert.equal((await call('PUT', `/ws/${w}/data`, tok, { baseRev: g.json.rev, data: d })).status, 200);
+
+  const inv = await call('POST', `/ws/${w}/invites`, tok, { email: 'cli-mod@x.co', clientId: 'k1' });          // sin módulos: mínimo
+  assert.deepEqual(inv.json.modules, ['documentos', 'proyectos', 'tareas']);
+  const c = await call('POST', '/auth/register', undefined, { email: 'cli-mod@x.co', password: 'contraseña-larga-1', inviteCode: inv.json.code });
+  const ct = c.json.token;
+  let v = await call('GET', `/ws/${w}/data`, ct);
+  assert.deepEqual(v.json.modules, ['documentos', 'proyectos', 'tareas']);
+  assert.equal(v.json.data.payrolls.length, 0);                                    // nómina: nunca por defecto
+  assert.equal(v.json.data.movements.length, 0);
+  assert.equal(v.json.data.forecasts.length, 0);
+  assert.deepEqual(v.json.data.docs.map((x: any) => x.id), ['dc']);                // el recibo de nómina tampoco
+  assert.equal(v.json.data.clients[0].notes, '');                                  // notas internas ocultas
+  assert.ok(!JSON.stringify(v.json).includes('NOTA INTERNA'));
+  assert.ok(!JSON.stringify(v.json).includes('Ana'));                              // ni el nombre del empleado en el JSON
+  assert.equal((await call('GET', `/ws/${w}/files/nomina0001`, ct)).status, 404);  // IDOR: descarga directa por clave
+  assert.equal((await call('GET', `/ws/${w}/files/acuse00001`, ct)).status, 200);
+  const up = await call('POST', `/ws/${w}/portal/upload`, ct, PDF('x'), { 'x-name': 'n.pdf', 'x-category': 'N%C3%B3mina' });
+  assert.equal(up.status, 403);                                                    // no puede subir como «Nómina» sin ese módulo
+  assert.equal((await call('POST', `/ws/${w}/portal/upload`, ct, Buffer.from('MZ binario'), { 'x-name': 'x.pdf', 'x-category': 'Acuse' })).status, 415);
+
+  // el propietario abre módulos: efecto inmediato
+  const set = await call('PUT', `/ws/${w}/invites/${encodeURIComponent('cli-mod@x.co')}/modules`, tok, { modules: ['documentos', 'nominas', 'movimientos', 'basura'] });
+  assert.deepEqual(set.json.modules, ['documentos', 'movimientos', 'nominas']);    // valores desconocidos descartados
+  v = await call('GET', `/ws/${w}/data`, ct);
+  assert.equal(v.json.data.payrolls.length, 1);
+  assert.equal(v.json.data.movements.length, 1);
+  assert.deepEqual(v.json.data.docs.map((x: any) => x.id).sort(), ['dc', 'dn']);
+  assert.equal((await call('GET', `/ws/${w}/files/nomina0001`, ct)).status, 200);
+  assert.equal(v.json.data.clients.length, 1);                                     // sigue sin ver a k2
+  // y los cierra: sin documentos no puede subir
+  await call('PUT', `/ws/${w}/invites/${encodeURIComponent('cli-mod@x.co')}/modules`, tok, { modules: ['tareas'] });
+  assert.equal((await call('POST', `/ws/${w}/portal/upload`, ct, PDF('x'), { 'x-name': 'n.pdf', 'x-category': 'Acuse' })).status, 403);
+  assert.equal((await call('PUT', `/ws/${w}/invites/nadie%40x.co/modules`, tok, { modules: [] })).status, 404);
+  const lst = await call('GET', `/ws/${w}/invites`, tok);
+  assert.deepEqual(lst.json.members.find((m: any) => m.email === 'cli-mod@x.co').modules, ['tareas']);
+});
+
+test('membresías anteriores sin módulos guardados reciben el mínimo (no el acceso amplio)', async () => {
+  const o = await call('POST', '/auth/register', undefined, { email: 'legado@x.co', password: 'contraseña-larga-1' });
+  const tok = o.json.token, w = o.json.memberships[0].workspaceId;
+  const g = await call('GET', `/ws/${w}/data`, tok);
+  g.json.data.clients = [{ id: 'k1', name: 'K', rfc: '', email: '', phone: '', status: 'Activo', notes: '' }];
+  g.json.data.payrolls = [{ id: 'n1', employee: 'Ana', clientId: 'k1', period: '2026-01', perceptionsCents: 1, deductionsCents: 0 }];
+  await call('PUT', `/ws/${w}/data`, tok, { baseRev: g.json.rev, data: g.json.data });
+  const inv = await call('POST', `/ws/${w}/invites`, tok, { email: 'viejo@x.co', clientId: 'k1' });
+  const c = await call('POST', '/auth/register', undefined, { email: 'viejo@x.co', password: 'contraseña-larga-1', inviteCode: inv.json.code });
+  const db = new DatabaseSync(path.join(process.env.DATA_DIR!, 'canville.db'));
+  db.exec("UPDATE members SET modules=NULL WHERE role='cliente'");                  // simula una fila creada antes de esta versión
+  db.close();
+  const v = await call('GET', `/ws/${w}/data`, c.json.token);
+  assert.equal(v.json.data.payrolls.length, 0);
 });

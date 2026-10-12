@@ -20,21 +20,28 @@ La app abre en **demostración** (identificada como tal; los datos no se guardan
 
 ## Qué incluye
 - **Clientes y expedientes**: ficha, lista por categoría de documento, vista previa de cliente.
+- **Portal con permisos por módulo**: al invitar, el propietario elige qué verá el cliente. Por defecto solo documentos, proyectos y pendientes; cifras, presupuestos, previsión, obligaciones y nóminas se abren una por una y se pueden cambiar o revocar después. El servidor filtra los datos y las descargas (no solo la pantalla) y oculta las notas internas.
 - **Documentos**: subir, abrir y eliminar; estados Pendiente / En revisión / Completo («Completo» = expediente organizado, no certificación fiscal).
 - **Tareas y proyectos**.
 - **Movimientos**: importes en centavos; importación CSV (una fila inválida impide importar todo); exportación que neutraliza fórmulas.
 - **Estados de cuenta**: importa los de los clientes desde CSV, Excel (.xlsx) y OFX/QFX. Detecta el encabezado y las columnas (con corrección manual), entiende fechas y montos mexicanos, sugiere categoría, marca los movimientos que ya existen para no duplicarlos, reporta cada fila ilegible (que no se importa) y puede guardar el archivo original en el expediente. **No lee PDF ni concilia saldos.**
-- **Presupuestos** con alertas, **Resultados** (ingresos − gastos, tendencia de 6 meses), **Planes** orientativos (Esencial $499, Profesional $999, Empresarial $1,999 MXN/mes; guardan una propuesta, no cobran).
+- **Planeación**: cobros y pagos esperados, proyección a 30/60/90 días desde la base neta registrada, vencidos aparte, agenda mensual y CSV. Previsión, no saldo bancario.
+- **Estadísticas**: filtros por cliente y periodo, tendencia de 6 meses, gasto por categoría, presupuesto contra gasto (con «% utilizado» y «% por encima» por separado) y observaciones calculadas.
+- **Alertas** en Inicio: vencimientos a 7 y 1 día, presupuesto al 80 % y 100 %, vencidos y documentos por revisar (solo dentro de la app).
+- **Presupuestos** con alertas, **Planes** orientativos (Esencial $499, Profesional $999, Empresarial $1,999 MXN/mes; guardan una propuesta, no cobran).
 - **Nóminas** con cálculo automático mensual (`src/domain/fiscal.ts`) y **recibo desglosado**: percepciones (sueldo, otras gravadas, exentas), ISR paso a paso (tramo, excedente, tasa, cuota fija, subsidio), IMSS obrero por concepto, otras deducciones y neto; exportable a CSV. También admite captura manual.
 - **Fiscal**: obligaciones, importes y fechas; validador de CFDI 3.3/4.0 (estructura, RFC, UUID, timbre, aritmética); consulta de estatus ante el SAT vía servidor; resumen mensual exportable.
 - **Nube**: cuentas, espacios, portal de clientes con invitación por código, revisión optimista (nunca sobrescribe cambios ajenos sin avisar), consulta de cambios cada 15 s, eliminación física de archivos, bitácora y respaldos.
 - **Respaldo**: descarga/restauración de un archivo con datos y documentos; solicitud de protección de almacenamiento al navegador.
 
+## Diagnóstico frente al kit
+Ver `docs/diagnostico-kit.md`: qué existe, qué se comprobó, qué riesgo tiene y qué decisiones faltan.
+
 ## Publicar en tiendas
 Ver `docs/publicacion-y-derechos.md` (estado técnico verificado, decisiones pendientes de Canville, inventario de datos y expediente de derechos) y `docs/THIRD_PARTY_LICENSES.md`.
 
 ## Verificado
-`npm test` (25 pruebas: cálculos, CSV, permisos, respaldo, fiscal y 8 pruebas de integración del servidor), `tsc --noEmit`, `expo export --platform web` y recorridos en Chromium (escritorio y 390 px) del modo local y del flujo completo en la nube: cuenta de despacho, cliente invitado que solo ve su expediente, subida del cliente, conflicto entre dos dispositivos, revocación, respaldo y migración local→nube.
+`npm test` (48 pruebas: cálculos, CSV, permisos, respaldo, fiscal y 8 pruebas de integración del servidor), `tsc --noEmit`, `expo export --platform web` y recorridos en Chromium (escritorio y 390 px) del modo local y del flujo completo en la nube: cuenta de despacho, cliente invitado que solo ve su expediente, subida del cliente, conflicto entre dos dispositivos, revocación, respaldo y migración local→nube.
 
 ## Límites (importante)
 - **Fiscal**: la app **no presenta declaraciones** (eso requiere e.firma o contraseña en el portal del SAT; la app nunca las pide ni las guarda). El validador de CFDI **no verifica sello ni cadena original**. La consulta de estatus ante el SAT está implementada según la especificación pública pero **no se pudo probar contra el SAT real** desde el entorno de desarrollo.

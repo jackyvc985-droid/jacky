@@ -72,10 +72,13 @@ test('permisos del portal', () => {
   d.docs = [{ id: 'd1', clientId: 'c1', category: '', period: '', name: '', mime: '', size: 0, fileKey: '', status: 'Completo', createdAt: '', uploadedBy: 'despacho' },
     { id: 'd2', clientId: 'c2', category: '', period: '', name: '', mime: '', size: 0, fileKey: '', status: 'Completo', createdAt: '', uploadedBy: 'despacho' }];
   d.invites = [{ email: 'a@b.c', clientId: 'c1', createdAt: '' }];
+  d.payrolls = [{ id: 'n', employee: 'Ana', clientId: 'c1', period: '', perceptionsCents: 1, deductionsCents: 0 }];
   const v = clientView(d, 'c1');
   assert.deepEqual(v.docs.map(x => x.id), ['d1']);
   assert.equal(v.clients.length, 1);
   assert.equal(v.invites.length, 0);
+  assert.equal(v.payrolls.length, 0); // nómina nunca por defecto
+  assert.equal(clientView(d, 'c1', ['nominas']).payrolls.length, 1);
   assert.equal(canChangeDocStatus('cliente'), false);
   assert.equal(canChangeDocStatus('propietario'), true);
 });
@@ -95,4 +98,29 @@ test('respaldo: ida y vuelta con archivos binarios', async () => {
   assert.deepEqual(Array.from(fromB64(b.files[0].b64)), Array.from(bytes));
   assert.throws(() => parseBackup('{"format":"otro"}'));
   assert.throws(() => parseBackup('no json'));
+});
+
+import { validateUpload, safeFileName } from '../src/domain/uploads.ts';
+import { sanitizeModules, parseModules } from '../src/domain/permissions.ts';
+test('validación de archivos subidos', () => {
+  const pdf = new TextEncoder().encode('%PDF-1.7\nx');
+  assert.deepEqual(validateUpload('a.PDF', pdf), { ok: true, mime: 'application/pdf' });
+  assert.equal(validateUpload('a.pdf', new TextEncoder().encode('no soy pdf')).ok, false);
+  assert.equal(validateUpload('a.exe', pdf).ok, false);
+  assert.equal(validateUpload('sinextension', pdf).ok, false);
+  assert.equal(validateUpload('a.pdf', new Uint8Array()).ok, false);
+  assert.equal(validateUpload('f.xml', new TextEncoder().encode('\ufeff <?xml version="1.0"?><a/>')).ok, true);
+  assert.equal(validateUpload('f.csv', new Uint8Array([97, 44, 0, 98])).ok, false);        // byte nulo: no es texto
+  assert.equal(validateUpload('f.png', new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1])).ok, true);
+  assert.equal(safeFileName('../../etc/passwd'), 'passwd');
+  assert.equal(safeFileName('C:\\x\\y.pdf'), 'y.pdf');
+  assert.equal(safeFileName('a<b>.pdf'), 'a_b_.pdf');
+  assert.equal(safeFileName('..'), 'archivo');
+});
+test('módulos del portal', () => {
+  assert.deepEqual(sanitizeModules(['nominas', 'x', 'documentos', 'documentos']), ['documentos', 'nominas']);
+  assert.deepEqual(sanitizeModules('mal'), ['documentos', 'proyectos', 'tareas']);
+  assert.deepEqual(parseModules(null), ['documentos', 'proyectos', 'tareas']);
+  assert.deepEqual(parseModules('{roto'), ['documentos', 'proyectos', 'tareas']);
+  assert.deepEqual(parseModules('["tareas"]'), ['tareas']);
 });

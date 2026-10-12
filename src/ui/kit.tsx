@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, ViewStyle } from 'react-native';
 import { parseMoney } from '../domain/money.ts';
 
-export const theme = { bg: '#f3f4f8', card: '#ffffff', text: '#1f2937', muted: '#6b7280', primary: '#1e3a8a', accent: '#b45309', line: '#e5e7eb', ok: '#15803d', warn: '#b45309', bad: '#b91c1c' };
+export const theme = { bg: '#F6F8FB', card: '#ffffff', text: '#1E293B', muted: '#64748B', primary: '#002D54', accent: '#E18464', gold: '#C5A028', teal: '#0D9488', line: '#E2E8F0', ok: '#0F766E', warn: '#B45309', bad: '#B91C1C' };
 
 export const Page = ({ title, actions, children }: { title: string; actions?: React.ReactNode; children: React.ReactNode }) => (
   <ScrollView style={{ flex: 1 }} contentContainerStyle={s.page}>
@@ -31,7 +31,7 @@ export const Banner = ({ tone, children }: { tone: 'warn' | 'info'; children: Re
   <View style={[s.banner, tone === 'warn' ? { backgroundColor: '#fef3c7', borderColor: '#f59e0b' } : { backgroundColor: '#dbeafe', borderColor: '#60a5fa' }]}><Text style={{ color: theme.text, fontSize: 13 }}>{children}</Text></View>
 );
 
-export type Field = { key: string; label: string; type?: 'text' | 'money' | 'date' | 'select' | 'multiline' | 'period'; options?: { value: string; label: string }[]; required?: boolean; hint?: string };
+export type Field = { key: string; label: string; type?: 'text' | 'money' | 'date' | 'select' | 'multi' | 'multiline' | 'period'; options?: { value: string; label: string }[]; required?: boolean; hint?: string };
 
 export function FormModal({ title, fields, initial, onSubmit, onClose, extra }: {
   title: string; fields: Field[]; initial: Record<string, unknown>; onSubmit: (v: Record<string, string>) => void | Promise<void>; onClose: () => void; extra?: React.ReactNode;
@@ -60,7 +60,20 @@ export function FormModal({ title, fields, initial, onSubmit, onClose, extra }: 
             {fields.map(f => (
               <View key={f.key} style={{ marginTop: 10 }}>
                 <Text style={s.label}>{f.label}{f.required ? ' *' : ''}</Text>
-                {f.type === 'select' ? (
+                {f.type === 'multi' ? (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                    {f.options!.map(o => {
+                      const on = (v[f.key] ?? '').split(',').includes(o.value);
+                      return (
+                        <Pressable key={o.value} accessibilityRole="checkbox" accessibilityState={{ checked: on }}
+                          onPress={() => { const cur = (v[f.key] ?? '').split(',').filter(Boolean); setV({ ...v, [f.key]: (on ? cur.filter(x => x !== o.value) : [...cur, o.value]).join(',') }); }}
+                          style={[s.chip, on && s.chipOn]}>
+                          <Text style={[{ fontSize: 13, color: theme.text }, on && { color: '#fff' }]}>{on ? '✓ ' : ''}{o.label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ) : f.type === 'select' ? (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
                     {f.options!.map(o => (
                       <Pressable key={o.value} onPress={() => setV({ ...v, [f.key]: o.value })} style={[s.chip, v[f.key] === o.value && s.chipOn]}>

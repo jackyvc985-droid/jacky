@@ -1,5 +1,6 @@
 import type { Data, Payroll } from './domain/types.ts';
 import { calcPayroll } from './domain/fiscal.ts';
+import { addDays, localDate } from './domain/planning.ts';
 
 const today = new Date();
 const iso = (monthsAgo: number, day: number) => {
@@ -59,6 +60,14 @@ export function demoData(): Data {
     obligations: [
       { id: 'o1', name: 'Declaración mensual ISR/IVA', clientId: 'c1', dueDate: iso(0, 17), amountCents: 320000, status: 'Pendiente' },
       { id: 'o2', name: 'DIOT', clientId: 'c2', dueDate: iso(0, 17), amountCents: 0, status: 'Presentada' },
+    ],
+    forecasts: [
+      { id: 'f1', concept: 'Honorarios del mes (Aurora)', kind: 'cobro', amountCents: 4500000, dueDate: addDays(localDate(), 6), clientId: 'c1', category: 'Servicios', status: 'Pendiente', note: 'Factura enviada' },
+      { id: 'f2', concept: 'Asesoría trimestral (Ramírez)', kind: 'cobro', amountCents: 1800000, dueDate: addDays(localDate(), 24), clientId: 'c2', category: 'Servicios', status: 'Pendiente', note: '' },
+      { id: 'f3', concept: 'Renta de oficina', kind: 'pago', amountCents: 1500000, dueDate: addDays(localDate(), 12), clientId: '', category: 'Renta', status: 'Pendiente', note: '' },
+      { id: 'f4', concept: 'Licencias de software', kind: 'pago', amountCents: 320000, dueDate: addDays(localDate(), 41), clientId: '', category: 'Software', status: 'Pendiente', note: '' },
+      { id: 'f5', concept: 'Cobro atrasado (Aurora)', kind: 'cobro', amountCents: 600000, dueDate: addDays(localDate(), -5), clientId: 'c1', category: 'Servicios', status: 'Pendiente', note: 'Dar seguimiento' },
+      { id: 'f6', concept: 'Pago a proveedor liquidado', kind: 'pago', amountCents: 250000, dueDate: addDays(localDate(), -9), clientId: '', category: 'Software', status: 'Liquidado', note: '' },
     ],
     invites: [], proposals: [],
   };
