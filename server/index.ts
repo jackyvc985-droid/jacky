@@ -3,8 +3,10 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { clientView, parseModules, sanitizeModules } from '../src/domain/permissions.ts';
+import { parseModules, sanitizeModules } from '../src/domain/permissions.ts';
 import { validateUpload, safeFileName } from '../src/domain/uploads.ts';
+import { INVITABLE_ROLES, authorizeWrite, canWrite, canWriteDoc, viewFor } from '../src/domain/roles.ts';
+import type { Member, RoleId } from '../src/domain/roles.ts';
 import { emptyData } from '../src/domain/types.ts';
 import type { Data } from '../src/domain/types.ts';
 import { consultaSat } from './sat.ts';
@@ -34,6 +36,9 @@ for (const sql of [
   'ALTER TABLE invites ADD COLUMN modules TEXT',
   'ALTER TABLE files ADD COLUMN sha256 TEXT',
   'ALTER TABLE files ADD COLUMN mime_detected TEXT',
+  'ALTER TABLE members ADD COLUMN employee_id TEXT',
+  'ALTER TABLE invites ADD COLUMN role TEXT',
+  'ALTER TABLE invites ADD COLUMN employee_id TEXT',
 ]) { try { db.exec(sql); } catch { /* la columna ya existe */ } }
 
 const id = () => crypto.randomBytes(9).toString('base64url');
@@ -90,10 +95,10 @@ const newSession = (userId: string) => {
 const memberships = (userId: string) =>
   db.prepare('SELECT m.workspace_id AS workspaceId, w.name, m.role, m.client_id AS clientId FROM members m JOIN workspaces w ON w.id=m.workspace_id WHERE m.user_id=?').all(userId);
 
-function member(a: Auth, ws: string) {
-  const m = db.prepare('SELECT role, client_id AS clientId, modules FROM members WHERE workspace_id=? AND user_id=?').get(ws, a.userId) as { role: string; clientId: string; modules: string | null } | undefined;
+function member(a: Auth, ws: string): Member {
+  const m = db.prepare('SELECT role, client_id AS clientId, modules, employee_id AS employeeId FROM members WHERE workspace_id=? AND user_id=?').get(ws, a.userId) as { role: string; clientId: string; modules: string | null; employeeId: string | null } | undefined;
   if (!m) throw new HttpError(404, 'Espacio no encontrado'); // no revela si existe
-  return { role: m.role, clientId: m.clientId, modules: parseModules(m.modules) };
+  return { role: m.role as RoleId, clientId: m.clientId ?? '', modules: parseModules(m.modules), employeeId: m.employeeId ?? '' };
 }
 const owner = (a: Auth, ws: string) => { const m = member(a, ws); if (m.role !== 'propietario') throw new HttpError(403, 'Solo el propietario'); return m; };
 const wsRow = (ws: string) => db.prepare('SELECT rev, data FROM workspaces WHERE id=?').get(ws) as { rev: number; data: string };
@@ -145,7 +150,7 @@ const routes: Handler = async (req, res, p, url) => {
       const userId = id(); const { salt, hash } = hashPassword(pw);
       db.prepare('INSERT INTO users VALUES(?,?,?,?,?)').run(userId, email, salt, hash, now());
       if (invite) {
-        db.prepare('INSERT INTO members(workspace_id,user_id,role,client_id,modules) VALUES(?,?,?,?,?)').run(invite.workspace_id, userId, 'cliente', invite.client_id, invite.modules ?? JSON.stringify(sanitizeModules(null)));
+        db.prepare('INSERT INTO members(workspace_id,user_id,role,client_id,modules,employee_id) VALUES(?,?,?,?,?,?)').run(invite.workspace_id, userId, invite.role ?? 'cliente', invite.client_id, invite.modules ?? JSON.stringify(sanitizeModules(null)), invite.employee_id ?? '');
         db.prepare('UPDATE invites SET used_at=? WHERE id=?').run(now(), invite.id);
         audit(invite.workspace_id, userId, 'invite.accepted', email);
       } else {
@@ -177,7 +182,7 @@ const routes: Handler = async (req, res, p, url) => {
       const a = auth(req); const b = await readJson(req);
       const inv = db.prepare('SELECT * FROM invites WHERE email=? AND code_hash=? AND used_at IS NULL').get(a.email, sha(String(b.inviteCode ?? '').trim().toUpperCase())) as any;
       if (!inv) throw new HttpError(400, 'Código de invitación inválido para esta cuenta');
-      db.prepare('INSERT OR REPLACE INTO members(workspace_id,user_id,role,client_id,modules) VALUES(?,?,?,?,?)').run(inv.workspace_id, a.userId, 'cliente', inv.client_id, inv.modules ?? JSON.stringify(sanitizeModules(null)));
+      db.prepare('INSERT OR REPLACE INTO members(workspace_id,user_id,role,client_id,modules,employee_id) VALUES(?,?,?,?,?,?)').run(inv.workspace_id, a.userId, inv.role ?? 'cliente', inv.client_id, inv.modules ?? JSON.stringify(sanitizeModules(null)), inv.employee_id ?? '');
       db.prepare('UPDATE invites SET used_at=? WHERE id=?').run(now(), inv.id);
       audit(inv.workspace_id, a.userId, 'invite.accepted', a.email);
       return { memberships: memberships(a.userId) };
@@ -225,16 +230,18 @@ const routes: Handler = async (req, res, p, url) => {
     if (p[2] === 'data') {
       if (method === 'GET') {
         const r = wsRow(ws); const d = parseData(r.data);
-        return { rev: r.rev, role: m.role, clientId: m.clientId, modules: m.role === 'propietario' ? null : m.modules, data: m.role === 'propietario' ? d : clientView(d, m.clientId, m.modules) };
+        return { rev: r.rev, role: m.role, clientId: m.clientId, employeeId: m.employeeId, modules: m.role === 'cliente' ? m.modules : null, data: viewFor(d, m) };
       }
       if (method === 'PUT') {
-        owner(a, ws);
         const b = await readJson(req);
-        const next = parseData(JSON.stringify(b.data ?? {}));
+        const stored = parseData(wsRow(ws).data);
+        const res = authorizeWrite(stored, m.role === 'propietario' ? parseData(JSON.stringify(b.data ?? {})) : (b.data ?? {}), m);
+        if (!res.ok) throw new HttpError(403, res.error);
+        const next = parseData(JSON.stringify(res.merged));
         // Actualización condicional: solo escribe si nadie cambió la revisión (revisión optimista).
         const r = db.prepare('UPDATE workspaces SET data=?, rev=rev+1 WHERE id=? AND rev=?').run(JSON.stringify(next), ws, Number(b.baseRev));
         if (r.changes === 0) throw new HttpError(409, 'Hay cambios más recientes. Recarga antes de guardar.', { rev: wsRow(ws).rev });
-        audit(ws, a.userId, 'data.saved', `rev ${Number(b.baseRev) + 1}`);
+        audit(ws, a.userId, 'data.saved', `rev ${Number(b.baseRev) + 1} rol:${m.role}`);
         sweepOrphans(ws, next);
         return { rev: Number(b.baseRev) + 1 };
       }
@@ -243,7 +250,7 @@ const routes: Handler = async (req, res, p, url) => {
     if (p[2] === 'files' && p[3]) {
       const key = p[3]; const fp = filePath(ws, key);
       if (method === 'PUT') {
-        owner(a, ws);
+        if (!canWrite(m.role, 'docs')) throw new HttpError(403, 'Tu rol no puede subir documentos');
         const buf = await readBody(req, MAX_FILE);
         const name = safeFileName(decodeURIComponent(String(req.headers['x-name'] ?? 'archivo')));
         const chk = validateUpload(name, buf);
@@ -256,7 +263,7 @@ const routes: Handler = async (req, res, p, url) => {
       }
       if (method === 'GET') {
         const full = parseData(wsRow(ws).data);
-        const d = m.role === 'propietario' ? full : clientView(full, m.clientId, m.modules); // mismas reglas que la lista de documentos
+        const d = viewFor(full, m); // mismas reglas que la lista de documentos de su rol
         const doc = d.docs.find(x => x.fileKey === key);
         if (!doc) throw new HttpError(404, 'Archivo no encontrado');
         if (!fs.existsSync(fp)) throw new HttpError(404, 'El archivo no existe en el servidor');
@@ -264,7 +271,8 @@ const routes: Handler = async (req, res, p, url) => {
         return { __raw: fs.readFileSync(fp), name: doc.name, mime: doc.mime };
       }
       if (method === 'DELETE') { // eliminación física
-        owner(a, ws);
+        const doc = parseData(wsRow(ws).data).docs.find(x => x.fileKey === key);
+        if (doc ? !canWriteDoc(m.role, doc) : !canWrite(m.role, 'docs')) throw new HttpError(403, 'Tu rol no puede eliminar este archivo');
         fs.rmSync(fp, { force: true });
         db.prepare('DELETE FROM files WHERE workspace_id=? AND key=?').run(ws, key);
         audit(ws, a.userId, 'file.deleted', key);
@@ -299,19 +307,24 @@ const routes: Handler = async (req, res, p, url) => {
       if (method === 'POST') {
         const b = await readJson(req);
         const email = String(b.email ?? '').trim().toLowerCase();
+        const role = String(b.role ?? 'cliente') as RoleId;
         const clientId = String(b.clientId ?? '');
+        const employeeId = String(b.employeeId ?? '');
         if (!/^\S+@\S+\.\S+$/.test(email)) throw new HttpError(400, 'Correo inválido');
-        if (!parseData(wsRow(ws).data).clients.some(c => c.id === clientId)) throw new HttpError(400, 'Cliente inexistente');
+        if (!INVITABLE_ROLES.includes(role)) throw new HttpError(400, 'Rol inválido');
+        const cur = parseData(wsRow(ws).data);
+        if (role === 'cliente' && !cur.clients.some(c => c.id === clientId)) throw new HttpError(400, 'Cliente inexistente');
+        if (role === 'empleado' && !cur.employees.some(e => e.id === employeeId)) throw new HttpError(400, 'Trabajador inexistente');
         const code = crypto.randomBytes(5).toString('hex').toUpperCase(); // se comparte manualmente
         const modules = sanitizeModules(b.modules); // si no se indica, el mínimo
         db.prepare('DELETE FROM invites WHERE workspace_id=? AND email=? AND used_at IS NULL').run(ws, email);
-        db.prepare('INSERT INTO invites(id,workspace_id,email,client_id,code_hash,created_at,used_at,modules) VALUES(?,?,?,?,?,?,NULL,?)').run(id(), ws, email, clientId, sha(code), now(), JSON.stringify(modules));
-        audit(ws, a.userId, 'invite.created', `${email} módulos:${modules.join(',')}`);
-        return { code, email, modules };
+        db.prepare('INSERT INTO invites(id,workspace_id,email,client_id,code_hash,created_at,used_at,modules,role,employee_id) VALUES(?,?,?,?,?,?,NULL,?,?,?)').run(id(), ws, email, role === 'cliente' ? clientId : '', sha(code), now(), JSON.stringify(modules), role, role === 'empleado' ? employeeId : '');
+        audit(ws, a.userId, 'invite.created', `${email} rol:${role}${role === 'cliente' ? ` módulos:${modules.join(',')}` : ''}`);
+        return { code, email, modules, role };
       }
       if (method === 'GET') {
-        const pend = (db.prepare('SELECT email, client_id AS clientId, created_at AS createdAt, modules FROM invites WHERE workspace_id=? AND used_at IS NULL').all(ws) as any[]).map(r => ({ ...r, modules: parseModules(r.modules) }));
-        const mem = (db.prepare("SELECT u.email, m.client_id AS clientId, m.modules FROM members m JOIN users u ON u.id=m.user_id WHERE m.workspace_id=? AND m.role='cliente'").all(ws) as any[]).map(r => ({ ...r, modules: parseModules(r.modules) }));
+        const pend = (db.prepare("SELECT email, client_id AS clientId, created_at AS createdAt, modules, COALESCE(role,'cliente') AS role, COALESCE(employee_id,'') AS employeeId FROM invites WHERE workspace_id=? AND used_at IS NULL").all(ws) as any[]).map(r => ({ ...r, modules: parseModules(r.modules) }));
+        const mem = (db.prepare("SELECT u.email, m.client_id AS clientId, m.modules, m.role AS role, COALESCE(m.employee_id,'') AS employeeId FROM members m JOIN users u ON u.id=m.user_id WHERE m.workspace_id=? AND m.role<>'propietario'").all(ws) as any[]).map(r => ({ ...r, modules: parseModules(r.modules) }));
         return { pending: pend, members: mem };
       }
       if (method === 'PUT' && p[3] && p[4] === 'modules') { // el propietario cambia lo que ve un cliente (efecto inmediato)
@@ -329,7 +342,7 @@ const routes: Handler = async (req, res, p, url) => {
         const email = decodeURIComponent(p[3]).toLowerCase();
         db.prepare('DELETE FROM invites WHERE workspace_id=? AND email=?').run(ws, email);
         const u = db.prepare('SELECT id FROM users WHERE email=?').get(email) as any;
-        if (u) db.prepare("DELETE FROM members WHERE workspace_id=? AND user_id=? AND role='cliente'").run(ws, u.id);
+        if (u) db.prepare("DELETE FROM members WHERE workspace_id=? AND user_id=? AND role<>'propietario'").run(ws, u.id);
         audit(ws, a.userId, 'invite.revoked', email);
         return { ok: true };
       }

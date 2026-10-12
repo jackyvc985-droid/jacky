@@ -164,3 +164,93 @@ test('ficha del trabajador: validaciones', () => {
   assert.ok(bad.errors.length >= 8, bad.errors.join('|'));
   assert.ok(validateEmployee(blankEmployee('z')).warnings.some(w => w.includes('RFC')));
 });
+
+import { viewFor, authorizeWrite, employeeView, canRead, canWrite, type Member } from '../src/domain/roles.ts';
+import type { Data } from '../src/domain/types.ts';
+
+const world = (): Data => {
+  const d = emptyData();
+  d.clients = [{ id: 'c1', name: 'Uno', rfc: 'AAA010101AAA', email: 'a@x', phone: '1', status: 'Activo', notes: 'NOTA INTERNA' }, { id: 'c2', name: 'Dos', rfc: '', email: '', phone: '', status: 'Activo', notes: '' }];
+  d.employees = [{ ...blankEmployee('e1', 'c1'), name: 'Ana' }, { ...blankEmployee('e2', 'c1'), name: 'Beto' }];
+  d.payrolls = [{ id: 'p1', employee: 'Ana', employeeId: 'e1', clientId: 'c1', period: '2026-10', perceptionsCents: 100, deductionsCents: 10 }, { id: 'p2', employee: 'Beto', employeeId: 'e2', clientId: 'c1', period: '2026-10', perceptionsCents: 200, deductionsCents: 20 }];
+  d.docs = [
+    { id: 'dn1', clientId: 'c1', category: 'Nómina', period: '', name: 'ana.xml', mime: '', size: 1, fileKey: 'k1', status: 'Completo', createdAt: '', uploadedBy: 'despacho', employeeId: 'e1' },
+    { id: 'dn2', clientId: 'c1', category: 'Nómina', period: '', name: 'beto.xml', mime: '', size: 1, fileKey: 'k2', status: 'Completo', createdAt: '', uploadedBy: 'despacho', employeeId: 'e2' },
+    { id: 'dx', clientId: 'c1', category: 'Acuse', period: '', name: 'acuse.pdf', mime: '', size: 1, fileKey: 'k3', status: 'Completo', createdAt: '', uploadedBy: 'despacho' },
+    { id: 'df', clientId: 'c1', category: 'CFDI/Factura', period: '', name: 'f.xml', mime: '', size: 1, fileKey: 'k4', status: 'Completo', createdAt: '', uploadedBy: 'despacho' },
+  ];
+  d.movements = [{ id: 'm1', date: '2026-10-01', type: 'ingreso', concept: 'x', category: 'x', amountCents: 5, clientId: 'c1' }];
+  d.tasks = [{ id: 't1', title: 'x', clientId: 'c1', projectId: '', due: '', done: false }];
+  d.budgets = [{ category: 'x', clientId: 'c1', period: '2026-10', limitCents: 1 }];
+  return d;
+};
+const mem = (role: Member['role'], extra: Partial<Member> = {}): Member => ({ role, clientId: '', modules: [], employeeId: '', ...extra });
+
+test('roles: qué ve cada rol', () => {
+  const d = world();
+  const nomina = viewFor(d, mem('nomina'));
+  assert.deepEqual(nomina.payrolls.map(p => p.id), ['p1', 'p2']);
+  assert.deepEqual(nomina.docs.map(x => x.id), ['dn1', 'dn2']);          // solo documentos de nómina
+  assert.equal(nomina.movements.length, 0);                              // sin cifras generales
+  assert.equal(nomina.clients[0].notes, '');                             // sin notas internas
+  const adm = viewFor(d, mem('administrador'));
+  assert.equal(adm.payrolls.length, 0); assert.equal(adm.employees.length, 0);   // el administrador no ve nómina
+  assert.deepEqual(adm.docs.map(x => x.id).sort(), ['df', 'dx']);
+  assert.equal(adm.clients[0].notes, 'NOTA INTERNA');
+  assert.equal(viewFor(d, mem('contador')).payrolls.length, 2);
+  const proy = viewFor(d, mem('proyectos'));
+  assert.equal(proy.movements.length, 0); assert.deepEqual(proy.docs.map(x => x.id).sort(), ['df', 'dx']);
+  const fac = viewFor(d, mem('facturacion'));
+  assert.deepEqual(fac.docs.map(x => x.id), ['df']); assert.equal(fac.payrolls.length, 0);
+  assert.equal(canRead('nomina', 'payrolls'), true); assert.equal(canRead('administrador', 'payrolls'), false);
+  assert.equal(canWrite('proyectos', 'clients'), false); assert.equal(canWrite('propietario', 'payrolls'), true);
+});
+
+test('trabajador: solo su ficha, sus nóminas y sus recibos', () => {
+  const d = world();
+  const v = viewFor(d, mem('empleado', { employeeId: 'e1' }));
+  assert.deepEqual(v.employees.map(e => e.id), ['e1']);
+  assert.deepEqual(v.payrolls.map(p => p.id), ['p1']);
+  assert.deepEqual(v.docs.map(x => x.id), ['dn1']);
+  assert.equal(v.movements.length + v.tasks.length + v.budgets.length, 0);
+  assert.equal(v.clients[0].notes, ''); assert.equal(v.clients[0].email, '');
+  assert.ok(!JSON.stringify(v).includes('Beto'));
+  assert.equal(employeeView(d, 'nadie').employees.length, 0);
+  assert.equal(authorizeWrite(d, { payrolls: [] }, mem('empleado', { employeeId: 'e1' })).ok, false);
+});
+
+test('escritura parcial: solo lo permitido; lo oculto se conserva intacto', () => {
+  const d = world();
+  const nom = mem('nomina');
+  const v = viewFor(d, nom);
+  // edita una nómina y, como su vista no trae movimientos, los manda vacíos: no se pierden
+  const r = authorizeWrite(d, { payrolls: v.payrolls.map(p => (p.id === 'p1' ? { ...p, perceptionsCents: 999 } : p)), movements: [], docs: v.docs }, nom);
+  assert.equal(r.ok, true);
+  if (r.ok) {
+    assert.equal(r.merged.payrolls.find(p => p.id === 'p1')!.perceptionsCents, 999);
+    assert.equal(r.merged.movements.length, 1);                              // intactos
+    assert.equal(r.merged.docs.length, 4);                                   // los documentos que no ve siguen ahí
+    assert.equal(r.merged.clients[0].notes, 'NOTA INTERNA');                 // y las notas que no ve también
+  }
+  // intentos indebidos
+  assert.equal(authorizeWrite(d, { movements: [{ ...d.movements[0], amountCents: 1 }] }, nom).ok, false);                       // colección ajena
+  assert.equal(authorizeWrite(d, { clients: v.clients.map(c => ({ ...c, name: 'X' })) }, nom).ok, false);                       // solo lectura
+  assert.equal(authorizeWrite(d, { docs: [...v.docs, { ...d.docs[2], id: 'nuevo' }] }, nom).ok, false);                          // doc que no es de nómina
+  assert.equal(authorizeWrite(d, { docs: [...v.docs, { ...d.docs[2], id: 'dx', category: 'Nómina' }] }, nom).ok, false);        // sustituir uno oculto
+  assert.equal(authorizeWrite(d, { docs: [...v.docs, { ...d.docs[0], id: 'dn3', category: 'Nómina' }] }, nom).ok, true);         // doc de nómina nuevo
+  assert.equal(authorizeWrite(d, { docs: v.docs.filter(x => x.id !== 'dn1') }, nom).ok, true);                                  // puede borrar los suyos
+  // un coordinador no toca nómina ni cifras; el administrador no escribe nómina
+  for (const role of ['proyectos', 'administrador'] as const) {
+    const noop = authorizeWrite(d, { payrolls: [] }, mem(role));          // no la ven: mandarla vacía no cambia nada
+    assert.equal(noop.ok, true);
+    if (noop.ok) assert.equal(noop.merged.payrolls.length, 2);           // y la nómina real sigue intacta
+    assert.equal(authorizeWrite(d, { payrolls: [{ ...d.payrolls[0], perceptionsCents: 1 }] }, mem(role)).ok, false);   // escribirla sí se rechaza
+  }
+  assert.equal(authorizeWrite(d, { tasks: [] }, mem('proyectos')).ok, true);
+  assert.equal(authorizeWrite(d, { tasks: [] }, mem('cliente')).ok, false);
+  // el propietario reemplaza todo
+  assert.equal(authorizeWrite(d, { tasks: [] }, mem('propietario')).ok, true);
+  // presupuestos se identifican por categoría + cliente + periodo
+  const adm = mem('administrador'), av = viewFor(d, adm);
+  assert.equal(authorizeWrite(d, { budgets: av.budgets.map(b => ({ ...b, limitCents: 9 })) }, adm).ok, true);
+});

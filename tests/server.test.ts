@@ -216,3 +216,94 @@ test('membresías anteriores sin módulos guardados reciben el mínimo (no el ac
   const v = await call('GET', `/ws/${w}/data`, c.json.token);
   assert.equal(v.json.data.payrolls.length, 0);
 });
+
+test('roles del equipo y trabajador: cada uno ve y escribe solo lo suyo (servidor)', async () => {
+  const o = await call('POST', '/auth/register', undefined, { email: 'jefa@x.co', password: 'contraseña-larga-1', workspaceName: 'Roles' });
+  const tok = o.json.token, w = o.json.memberships[0].workspaceId;
+  const emp = (id: string, name: string) => ({ id, clientId: 'k1', numEmpleado: id, name, rfc: '', curp: '', nss: '', birthDate: '', email: '', phone: '', address: '', cp: '', hireDate: '', endDate: '', status: 'Activo', puesto: '', departamento: '', contractType: '01', jornada: '01', periodicidad: '05', regimen: '02', entidad: '', dailySalaryCents: 1, sbcDailyCents: 1, bank: '', clabe: '', infonavitType: '', infonavitValue: '', infonavitCredit: '', notes: '' });
+  const g = await call('GET', `/ws/${w}/data`, tok);
+  const d = g.json.data;
+  d.clients = [{ id: 'k1', name: 'K1', rfc: 'AAA010101AAA', email: '', phone: '', status: 'Activo', notes: 'NOTA INTERNA' }];
+  d.employees = [emp('e1', 'Ana Secreta'), emp('e2', 'Beto Reservado')];
+  d.payrolls = [{ id: 'p1', employee: 'Ana Secreta', employeeId: 'e1', clientId: 'k1', period: '2026-10', perceptionsCents: 100000, deductionsCents: 10000 }, { id: 'p2', employee: 'Beto Reservado', employeeId: 'e2', clientId: 'k1', period: '2026-10', perceptionsCents: 200000, deductionsCents: 20000 }];
+  d.movements = [{ id: 'm1', date: '2026-10-01', type: 'ingreso', concept: 'x', category: 'x', amountCents: 5000, clientId: 'k1' }];
+  d.docs = [
+    { id: 'r1', clientId: 'k1', category: 'Nómina', period: '2026-10', name: 'ana.xml', mime: '', size: 1, fileKey: 'recibo-ana1', status: 'Completo', createdAt: '', uploadedBy: 'despacho', employeeId: 'e1' },
+    { id: 'r2', clientId: 'k1', category: 'Nómina', period: '2026-10', name: 'beto.xml', mime: '', size: 1, fileKey: 'recibo-beto', status: 'Completo', createdAt: '', uploadedBy: 'despacho', employeeId: 'e2' },
+    { id: 'ac', clientId: 'k1', category: 'Acuse', period: '2026-10', name: 'acuse.pdf', mime: '', size: 1, fileKey: 'acuse-roles', status: 'Completo', createdAt: '', uploadedBy: 'despacho' },
+  ];
+  await call('PUT', `/ws/${w}/files/recibo-ana1`, tok, Buffer.from('<?xml version="1.0"?><a/>'), { 'x-name': 'ana.xml' });
+  await call('PUT', `/ws/${w}/files/recibo-beto`, tok, Buffer.from('<?xml version="1.0"?><b/>'), { 'x-name': 'beto.xml' });
+  await call('PUT', `/ws/${w}/files/acuse-roles`, tok, PDF('acuse'), { 'x-name': 'acuse.pdf' });
+  assert.equal((await call('PUT', `/ws/${w}/data`, tok, { baseRev: g.json.rev, data: d })).status, 200);
+
+  const join = async (email: string, body: object) => {
+    const inv = await call('POST', `/ws/${w}/invites`, tok, { email, ...body });
+    assert.equal(inv.status, 200, JSON.stringify(inv.json));
+    const r = await call('POST', '/auth/register', undefined, { email, password: 'contraseña-larga-1', inviteCode: inv.json.code });
+    assert.equal(r.status, 200);
+    return { token: r.json.token as string, role: r.json.memberships[0].role as string };
+  };
+  assert.equal((await call('POST', `/ws/${w}/invites`, tok, { email: 'mal@x.co', role: 'superadmin' })).status, 400);
+  assert.equal((await call('POST', `/ws/${w}/invites`, tok, { email: 'mal@x.co', role: 'empleado', employeeId: 'nadie' })).status, 400);
+
+  // --- responsable de nómina
+  const nom = await join('nomina@x.co', { role: 'nomina' });
+  assert.equal(nom.role, 'nomina');
+  let v = await call('GET', `/ws/${w}/data`, nom.token);
+  assert.equal(v.json.data.payrolls.length, 2);
+  assert.equal(v.json.data.movements.length, 0);
+  assert.equal(v.json.data.clients[0].notes, '');
+  assert.deepEqual(v.json.data.docs.map((x: any) => x.id).sort(), ['r1', 'r2']);
+  const edited = v.json.data.payrolls.map((p: any) => (p.id === 'p1' ? { ...p, perceptionsCents: 123456 } : p));
+  assert.equal((await call('PUT', `/ws/${w}/data`, nom.token, { baseRev: v.json.rev, data: { payrolls: edited } })).status, 200);
+  let full = await call('GET', `/ws/${w}/data`, tok);
+  assert.equal(full.json.data.payrolls.find((p: any) => p.id === 'p1').perceptionsCents, 123456);
+  assert.equal(full.json.data.movements.length, 1);                              // lo que no ve, intacto
+  assert.equal(full.json.data.clients[0].notes, 'NOTA INTERNA');
+  assert.equal(full.json.data.docs.length, 3);
+  v = await call('GET', `/ws/${w}/data`, nom.token);
+  assert.equal((await call('PUT', `/ws/${w}/data`, nom.token, { baseRev: v.json.rev, data: { movements: [{ id: 'm9', date: '2026-10-02', type: 'gasto', concept: 'x', category: 'x', amountCents: 1, clientId: 'k1' }] } })).status, 403);
+  const acuseAsNomina = { id: 'x1', clientId: 'k1', category: 'Acuse', period: '', name: 'a.pdf', mime: '', size: 1, fileKey: 'zzzzzzz1', status: 'Completo', createdAt: '', uploadedBy: 'despacho' };
+  assert.equal((await call('PUT', `/ws/${w}/data`, nom.token, { baseRev: v.json.rev, data: { docs: [...v.json.data.docs, acuseAsNomina] } })).status, 403);   // no escribe documentos que no son de nómina
+  assert.equal((await call('PUT', `/ws/${w}/files/nuevo-recib1`, nom.token, Buffer.from('<?xml version="1.0"?><c/>'), { 'x-name': 'c.xml' })).status, 200);
+  assert.equal((await call('GET', `/ws/${w}/files/acuse-roles`, nom.token)).status, 404);        // el acuse no es de nómina
+  assert.equal((await call('GET', `/ws/${w}/invites`, nom.token)).status, 403);                  // no administra accesos
+  assert.equal((await call('GET', `/ws/${w}/backup`, nom.token)).status, 403);
+
+  // --- administrador interno: sin nómina
+  const adm = await join('admin@x.co', { role: 'administrador' });
+  v = await call('GET', `/ws/${w}/data`, adm.token);
+  assert.equal(v.json.data.payrolls.length, 0); assert.equal(v.json.data.employees.length, 0);
+  assert.equal(v.json.data.movements.length, 1);
+  assert.deepEqual(v.json.data.docs.map((x: any) => x.id), ['ac']);
+  assert.ok(!JSON.stringify(v.json).includes('Ana Secreta'));
+  assert.equal((await call('GET', `/ws/${w}/files/recibo-ana1`, adm.token)).status, 404);
+  assert.equal((await call('PUT', `/ws/${w}/data`, adm.token, { baseRev: v.json.rev, data: { payrolls: [{ id: 'p1', employee: 'x', clientId: 'k1', period: '2026-10', perceptionsCents: 1, deductionsCents: 0 }] } })).status, 403);
+  assert.equal((await call('PUT', `/ws/${w}/data`, adm.token, { baseRev: v.json.rev, data: { tasks: [{ id: 't1', title: 'Llamar', clientId: 'k1', projectId: '', due: '', done: false }] } })).status, 200);
+  full = await call('GET', `/ws/${w}/data`, tok);
+  assert.equal(full.json.data.payrolls.length, 2);                                                // la nómina sobrevive al guardado del administrador
+  assert.equal(full.json.data.tasks.length, 1);
+
+  // --- trabajador: solo lo suyo
+  const emp1 = await join('ana@x.co', { role: 'empleado', employeeId: 'e1' });
+  assert.equal(emp1.role, 'empleado');
+  v = await call('GET', `/ws/${w}/data`, emp1.token);
+  assert.deepEqual(v.json.data.employees.map((e: any) => e.id), ['e1']);
+  assert.deepEqual(v.json.data.payrolls.map((p: any) => p.id), ['p1']);
+  assert.deepEqual(v.json.data.docs.map((x: any) => x.id), ['r1']);
+  assert.equal(v.json.data.movements.length + v.json.data.tasks.length, 0);
+  assert.ok(!JSON.stringify(v.json).includes('Beto Reservado'));
+  assert.ok(!JSON.stringify(v.json).includes('NOTA INTERNA'));
+  assert.equal((await call('GET', `/ws/${w}/files/recibo-ana1`, emp1.token)).status, 200);
+  assert.equal((await call('GET', `/ws/${w}/files/recibo-beto`, emp1.token)).status, 404);        // el recibo de otro trabajador
+  assert.equal((await call('PUT', `/ws/${w}/data`, emp1.token, { baseRev: v.json.rev, data: { payrolls: [] } })).status, 403);
+  assert.equal((await call('PUT', `/ws/${w}/files/hack-hack1`, emp1.token, PDF('x'), { 'x-name': 'x.pdf' })).status, 403);
+  assert.equal((await call('POST', `/ws/${w}/portal/upload`, emp1.token, PDF('x'), { 'x-name': 'x.pdf' })).status, 403);
+
+  // --- el listado de accesos y la revocación
+  const lst = await call('GET', `/ws/${w}/invites`, tok);
+  assert.deepEqual(lst.json.members.map((m: any) => m.role).sort(), ['administrador', 'empleado', 'nomina']);
+  assert.equal((await call('DELETE', `/ws/${w}/invites/${encodeURIComponent('ana@x.co')}`, tok)).status, 200);
+  assert.equal((await call('GET', `/ws/${w}/data`, emp1.token)).status, 404);
+});
