@@ -10,6 +10,7 @@ import type { Member, RoleId } from '../src/domain/roles.ts';
 import { emptyData } from '../src/domain/types.ts';
 import type { Data } from '../src/domain/types.ts';
 import { consultaSat } from './sat.ts';
+import { checkKeyAtStartup, decrypt, encrypt, parseKey } from './crypto.ts';
 
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), 'server-data');
 const PORT = Number(process.env.PORT ?? 8787);
@@ -19,26 +20,14 @@ const MAX_JSON = 20 * 1024 * 1024, MAX_FILE = 25 * 1024 * 1024, SESSION_DAYS = 3
 
 // Cifrado en reposo (AES-256-GCM) de los datos del espacio y de los archivos. Clave: DATA_KEY (32 bytes en base64).
 // Quien opere el servidor guarda la clave aparte de los respaldos: sin ella, lo cifrado no se puede recuperar.
-const DATA_KEY = process.env.DATA_KEY ? Buffer.from(process.env.DATA_KEY, 'base64') : null;
-if (DATA_KEY && DATA_KEY.length !== 32) throw new Error('DATA_KEY debe ser una clave de 32 bytes en base64');
-const MAGIC = Buffer.from('CVENC1');
-function encBuf(b: Buffer): Buffer {
-  if (!DATA_KEY) return b;
-  const iv = crypto.randomBytes(12), c = crypto.createCipheriv('aes-256-gcm', DATA_KEY, iv);
-  const ct = Buffer.concat([c.update(b), c.final()]);
-  return Buffer.concat([MAGIC, iv, c.getAuthTag(), ct]);
-}
-function decBuf(b: Buffer): Buffer {
-  if (!b.subarray(0, MAGIC.length).equals(MAGIC)) return b; // dato anterior sin cifrar: se leerá y se cifrará en su siguiente escritura
-  if (!DATA_KEY) throw new Error('Los datos están cifrados y falta DATA_KEY');
-  const d = crypto.createDecipheriv('aes-256-gcm', DATA_KEY, b.subarray(6, 18));
-  d.setAuthTag(b.subarray(18, 34));
-  return Buffer.concat([d.update(b.subarray(34)), d.final()]);
-}
+const DATA_KEY = parseKey(process.env.DATA_KEY);
+const encBuf = (b: Buffer) => encrypt(DATA_KEY, b);
+const decBuf = (b: Buffer) => decrypt(DATA_KEY, b);
 const packData = (json: string) => (DATA_KEY ? 'enc1:' + encBuf(Buffer.from(json, 'utf8')).toString('base64') : json);
 const unpackData = (s: string) => (s.startsWith('enc1:') ? decBuf(Buffer.from(s.slice(5), 'base64')).toString('utf8') : s);
 
 fs.mkdirSync(path.join(DATA_DIR, 'files'), { recursive: true });
+const KEY_STATUS = checkKeyAtStartup(DATA_DIR, DATA_KEY, fs, path); // lanza si la clave falta o no corresponde
 const db = new DatabaseSync(path.join(DATA_DIR, 'canville.db'));
 db.exec(`
 PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;
@@ -429,5 +418,5 @@ export function createServer() {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  createServer().listen(PORT, () => console.log(`Canville API en :${PORT} (datos en ${DATA_DIR})`));
+  createServer().listen(PORT, () => console.log(`Canville API en :${PORT} (datos en ${DATA_DIR}) · ${KEY_STATUS}`));
 }

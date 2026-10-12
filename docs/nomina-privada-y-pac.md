@@ -28,9 +28,11 @@ Leyenda: ✔ hecho y probado · ◐ parcial · ✗ no hecho (con motivo).
 3. **Los certificados y llaves no se piden ni se guardan por chat.** Si algún día se integra, la firma debe ocurrir en un servicio con bóveda de claves, con aprobación por contenido exacto, claves de idempotencia y separación entre aprobar, timbrar y cancelar, como describe el documento.
 4. Timbrar y cancelar tienen efectos fiscales: requieren autorización expresa de JACKY y revisión de un contador antes de activarse.
 
-**Decisión pendiente de JACKY:** ¿se queda el flujo actual (CONTPAQi timbra, la app carga y entrega) o se quiere emitir desde la app con un PAC propio? Si es lo segundo, el primer paso es elegir el PAC y conseguir su sandbox.
+**Decisión de JACKY (12 oct 2026): se sigue con CONTPAQi.** CONTPAQi timbra; la app carga, valida, concilia y entrega los recibos. La integración con un PAC queda **descartada por ahora**. Si algún día se reabre, el material recibido (`CANVILLE_INICIO_NOMINA_Y_PRUEBAS_PAC`, la presentación y la guía de pruebas) describe cómo hacerlo; está escrito para el código de otra plataforma y habría que adaptarlo. El primer paso sería elegir un PAC de la lista del SAT y conseguir su ambiente de pruebas.
+
+**Decisión de JACKY (12 oct 2026): sí se guarda la clave de cifrado**, según `docs/custodia-clave.md`.
 
 ## Operación del servidor
 - Genera la clave: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` y defínela como `DATA_KEY` en un gestor de secretos del proveedor (nunca en el repositorio).
 - Respaldos: copian la base y los archivos tal cual (cifrados). Guarda la clave por separado; un respaldo sin clave no se puede restaurar, y una clave sin respaldo tampoco.
-- Cambiar de clave exige migrar (descifrar con la anterior y volver a cifrar): no está automatizado.
+- Cambiar de clave (o activar el cifrado en datos existentes): `npm run server:rekey` (ver `docs/custodia-clave.md`). Si la clave falta o no corresponde, el servidor **no arranca**, para no mezclar datos cifrados con datos sin cifrar.

@@ -12,10 +12,12 @@ DATA_DIR=/var/lib/canville PORT=8787 ALLOWED_ORIGINS=https://app.tudominio.com n
 |---|---|
 | `PORT` | Puerto (8787) |
 | `DATA_DIR` | Carpeta de base de datos y archivos (`./server-data`) |
-| `DATA_KEY` | Clave de 32 bytes en base64 para cifrar en reposo los datos y los archivos (recomendado). Genérala con `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` y guárdala en un gestor de secretos, **aparte de los respaldos**: sin ella no se pueden recuperar los datos |
+| `DATA_KEY` | Clave de 32 bytes en base64 para cifrar en reposo los datos y los archivos (recomendado). Genérala con `node scripts/genkey.mjs` y guárdala según `docs/custodia-clave.md`, **aparte de los respaldos**: sin ella no se pueden recuperar los datos. Al arrancar el servidor imprime la huella de la clave y se niega a iniciar si falta o no coincide con la usada antes |
 | `ALLOWED_ORIGINS` | Orígenes CORS permitidos, separados por coma (`*` por defecto: restríngelo en producción) |
 
 La app apunta al servidor desde **Configuración → Cuenta en la nube** o con `EXPO_PUBLIC_API_URL` al compilar.
+
+Despliegue paso a paso: `docs/despliegue.md` (`deploy/docker-compose.yml`, sin probar en un servidor real). Cambio de clave: `npm run server:rekey`.
 
 ## Producción: lo mínimo indispensable
 - **HTTPS obligatorio.** Pon el servidor detrás de un proxy con TLS (Caddy, nginx, Cloudflare). Las sesiones viajan como token `Bearer`.

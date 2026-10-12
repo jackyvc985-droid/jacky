@@ -58,3 +58,71 @@ test('cifrado en reposo: la base y los archivos no contienen texto legible, y la
   fs.writeFileSync(path.join(dir, 'files', w, 'recibo-cifrado'), tampered);
   assert.equal((await call('GET', `/ws/${w}/files/recibo-cifrado`, tok)).status, 500);
 });
+
+import { spawnSync } from 'node:child_process';
+import { checkKeyAtStartup, decrypt, encrypt, fingerprint, parseKey } from '../server/crypto.ts';
+import { rekey } from '../server/rekey.ts';
+
+const newKey = () => crypto.randomBytes(32);
+
+test('arranque seguro: crea la marca de clave, rechaza una clave equivocada y rechaza arrancar sin clave', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'canville-key-'));
+  const A = newKey(), B = newKey();
+  assert.ok(checkKeyAtStartup(dir, null, fs, path).startsWith('SIN cifrado'));
+  assert.equal(fs.existsSync(path.join(dir, '.key-check')), false);
+  assert.ok(checkKeyAtStartup(dir, A, fs, path).includes(fingerprint(A)));
+  assert.ok(checkKeyAtStartup(dir, A, fs, path).includes('cifrado activo'));       // mismo arranque otra vez: ok
+  assert.throws(() => checkKeyAtStartup(dir, B, fs, path), /no corresponde/);       // clave equivocada
+  assert.throws(() => checkKeyAtStartup(dir, null, fs, path), /falta DATA_KEY/);    // sin clave en un servidor que ya cifra
+  assert.throws(() => parseKey('corta'), /32 bytes/);
+  assert.notEqual(fingerprint(A), fingerprint(B));
+  assert.equal(fingerprint(A).length, 8);
+  // la marca no revela la clave y no se puede leer con otra
+  const mark = fs.readFileSync(path.join(dir, '.key-check'));
+  assert.ok(!mark.includes(A));
+  assert.throws(() => decrypt(B, mark));
+});
+
+test('arranque real del servidor: con la clave correcta inicia; con otra o sin clave se detiene con un mensaje claro', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'canville-boot-'));
+  const run = (key?: string) => spawnSync(process.execPath, ['--experimental-strip-types', '--disable-warning=ExperimentalWarning', '--input-type=module', '-e', `await import(${JSON.stringify(new URL('../server/index.ts', import.meta.url).href)})`], { env: { ...process.env, DATA_DIR: dir, DATA_KEY: key ?? '' }, encoding: 'utf8', timeout: 30000 });
+  const A = newKey().toString('base64'), B = newKey().toString('base64');
+  assert.equal(run(A).status, 0);
+  const wrong = run(B);
+  assert.notEqual(wrong.status, 0);
+  assert.match(wrong.stderr, /no corresponde a la clave/);
+  const none = run();
+  assert.notEqual(none.status, 0);
+  assert.match(none.stderr, /falta DATA_KEY/);
+  assert.equal(run(A).status, 0);                                                    // la correcta sigue funcionando
+});
+
+test('cambio de clave: todo se recifra, la anterior deja de servir y se puede activar el cifrado en datos sin cifrar', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'canville-rekey-'));
+  fs.mkdirSync(path.join(dir, 'files', 'w1'), { recursive: true });
+  const db = new DatabaseSync(path.join(dir, 'canville.db'));
+  db.exec('CREATE TABLE workspaces(id TEXT PRIMARY KEY, name TEXT, rev INTEGER, data TEXT, created_at TEXT)');
+  db.prepare('INSERT INTO workspaces VALUES(?,?,?,?,?)').run('w1', 'x', 1, '{"employees":[{"name":"Ana Secreta"}]}', '');   // sin cifrar
+  db.close();
+  fs.writeFileSync(path.join(dir, 'files', 'w1', 'f1'), 'contenido del recibo');
+  const A = newKey(), B = newKey();
+
+  // 1) activar el cifrado sobre datos existentes
+  assert.deepEqual(rekey(dir, null, A), { workspaces: 1, files: 1 });
+  let row = (() => { const d = new DatabaseSync(path.join(dir, 'canville.db')); const r = d.prepare('SELECT data FROM workspaces').get() as { data: string }; d.close(); return r.data; })();
+  assert.ok(row.startsWith('enc1:') && !row.includes('Ana Secreta'));
+  assert.equal(decrypt(A, fs.readFileSync(path.join(dir, 'files', 'w1', 'f1'))).toString(), 'contenido del recibo');
+  assert.ok(checkKeyAtStartup(dir, A, fs, path).includes('cifrado activo'));
+
+  // 2) cambiar de clave A → B
+  assert.throws(() => rekey(dir, B, newKey()), /no corresponde/);                    // con una clave actual equivocada no toca nada
+  assert.deepEqual(rekey(dir, A, B), { workspaces: 1, files: 1 });
+  row = (() => { const d = new DatabaseSync(path.join(dir, 'canville.db')); const r = d.prepare('SELECT data FROM workspaces').get() as { data: string }; d.close(); return r.data; })();
+  assert.equal(decrypt(B, Buffer.from(row.slice(5), 'base64')).toString(), '{"employees":[{"name":"Ana Secreta"}]}');
+  assert.throws(() => decrypt(A, Buffer.from(row.slice(5), 'base64')));              // la clave anterior ya no sirve
+  assert.throws(() => decrypt(A, fs.readFileSync(path.join(dir, 'files', 'w1', 'f1'))));
+  assert.equal(decrypt(B, fs.readFileSync(path.join(dir, 'files', 'w1', 'f1'))).toString(), 'contenido del recibo');
+  assert.ok(checkKeyAtStartup(dir, B, fs, path).includes(fingerprint(B)));
+  assert.throws(() => checkKeyAtStartup(dir, A, fs, path), /no corresponde/);
+  void encrypt;
+});
