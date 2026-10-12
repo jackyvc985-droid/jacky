@@ -35,7 +35,7 @@ export function budgetAlerts(budgets: Budget[], ms: Movement[]): BudgetAlert[] {
   });
 }
 
-/** Neto = percepciones capturadas − deducciones capturadas. No calcula ISR, IMSS, etc. */
-export const payrollNet = (p: Pick<Payroll, 'perceptionsCents' | 'deductionsCents'>) => p.perceptionsCents - p.deductionsCents;
+/** Neto = percepciones − deducciones (+ subsidio entregado al trabajador, si hubo cálculo automático). */
+export const payrollNet = (p: Pick<Payroll, 'perceptionsCents' | 'deductionsCents' | 'subsidyPaidCents'>) => p.perceptionsCents - p.deductionsCents + (p.subsidyPaidCents ?? 0);
 
 export const budgetKey = (b: Pick<Budget, 'category' | 'clientId' | 'period'>) => `${b.category}|${b.clientId}|${b.period}`;

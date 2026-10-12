@@ -25,9 +25,8 @@ export const Badge = ({ label, tone = 'muted' }: { label: string; tone?: 'ok' | 
   const c = tone === 'ok' ? theme.ok : tone === 'warn' ? theme.warn : tone === 'bad' ? theme.bad : theme.muted;
   return <Text style={[s.badge, { color: c, borderColor: c }]}>{label}</Text>;
 };
-export const Row = ({ children, onPress }: { children: React.ReactNode; onPress?: () => void }) => (
-  <Pressable onPress={onPress} disabled={!onPress} style={s.row}>{children}</Pressable>
-);
+export const Row = ({ children, onPress }: { children: React.ReactNode; onPress?: () => void }) =>
+  onPress ? <Pressable onPress={onPress} accessibilityRole="button" style={s.row}>{children}</Pressable> : <View style={s.row}>{children}</View>;
 export const Banner = ({ tone, children }: { tone: 'warn' | 'info'; children: React.ReactNode }) => (
   <View style={[s.banner, tone === 'warn' ? { backgroundColor: '#fef3c7', borderColor: '#f59e0b' } : { backgroundColor: '#dbeafe', borderColor: '#60a5fa' }]}><Text style={{ color: theme.text, fontSize: 13 }}>{children}</Text></View>
 );

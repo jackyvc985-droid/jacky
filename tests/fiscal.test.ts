@@ -62,3 +62,15 @@ test('CFDI con total incorrecto, sin timbre y XML roto', () => {
   assert.equal(validateCfdi('<a><b></a>').ok, false);
   assert.equal(validateCfdi('<x/>').ok, false);
 });
+
+import { buildEnvelope, parseResponse, formatTotal, validateQuery } from '../server/sat.ts';
+test('consulta SAT: solicitud y lectura de respuesta (sin red)', () => {
+  assert.equal(formatTotal('1160.5'), '0000001160.500000');
+  const q = { re: 'AAA010101AAA', rr: 'XAXX010101000', total: '1160.00', uuid: '6128396F-C09B-4EC6-8699-43C5F7E3B230' };
+  assert.equal(validateQuery(q), null);
+  assert.ok(validateQuery({ ...q, uuid: 'x' }));
+  assert.ok(buildEnvelope(q).includes('?re=AAA010101AAA&rr=XAXX010101000&tt=0000001160.000000&id=6128396F-C09B-4EC6-8699-43C5F7E3B230'));
+  const r = parseResponse('<s:Envelope><s:Body><ConsultaResponse><ConsultaResult><a:CodigoEstatus>S - Comprobante obtenido satisfactoriamente.</a:CodigoEstatus><a:EsCancelable>Cancelable sin aceptación</a:EsCancelable><a:Estado>Vigente</a:Estado><a:EstatusCancelacion/></ConsultaResult></ConsultaResponse></s:Body></s:Envelope>');
+  assert.equal(r.estado, 'Vigente');
+  assert.throws(() => parseResponse('<x/>'));
+});

@@ -18,7 +18,13 @@ export type Project = { id: Id; name: string; clientId: Id; status: 'Planeado' |
 export type MovementType = 'ingreso' | 'gasto';
 export type Movement = { id: Id; date: string; type: MovementType; concept: string; category: string; amountCents: number; clientId: Id | '' };
 export type Budget = { category: string; clientId: Id | ''; period: string; limitCents: number };
-export type Payroll = { id: Id; employee: string; clientId: Id | ''; period: string; perceptionsCents: number; deductionsCents: number };
+export type PayrollCalc = { isrCents: number; imssCents: number; subsidyAppliedCents: number; otherCents: number; tablesYear: number };
+export type Payroll = {
+  id: Id; employee: string; clientId: Id | ''; period: string; perceptionsCents: number; deductionsCents: number;
+  /** Subsidio para el empleo que excede el ISR y se entrega al trabajador (solo cálculo automático). */
+  subsidyPaidCents?: number;
+  calc?: PayrollCalc; // presente cuando se calculó con las tablas
+};
 export type ObligationStatus = 'Pendiente' | 'Presentada' | 'Pagada';
 export type Obligation = { id: Id; name: string; clientId: Id | ''; dueDate: string; amountCents: number; status: ObligationStatus };
 export type Invite = { email: string; clientId: Id; createdAt: string };
@@ -31,4 +37,4 @@ export type Data = {
 export const emptyData = (): Data => ({
   clients: [], docs: [], tasks: [], projects: [], movements: [], budgets: [], payrolls: [], obligations: [], invites: [], proposals: [],
 });
-export type Mode = 'demo' | 'local';
+export type Mode = 'demo' | 'local' | 'cloud';

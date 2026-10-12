@@ -6,10 +6,11 @@ import { DatabaseSync } from 'node:sqlite';
 import { clientView } from '../src/domain/permissions.ts';
 import { emptyData } from '../src/domain/types.ts';
 import type { Data } from '../src/domain/types.ts';
+import { consultaSat } from './sat.ts';
 
 const DATA_DIR = process.env.DATA_DIR ?? path.join(process.cwd(), 'server-data');
 const PORT = Number(process.env.PORT ?? 8787);
-const ORIGINS = (process.env.ALLOWED_ORIGINS ?? '*').split(',').map(s => s.trim());
+const ORIGINS = (process.env.ALLOWED_ORIGINS ?? '*').split(',').map((s: string) => s.trim());
 const MAX_JSON = 20 * 1024 * 1024, MAX_FILE = 25 * 1024 * 1024, SESSION_DAYS = 30, ORPHAN_GRACE_MS = 3600_000;
 
 fs.mkdirSync(path.join(DATA_DIR, 'files'), { recursive: true });
@@ -171,6 +172,13 @@ const routes: Handler = async (req, res, p, url) => {
       audit(inv.workspace_id, a.userId, 'invite.accepted', a.email);
       return { memberships: memberships(a.userId) };
     }
+  }
+
+  if (p[0] === 'cfdi' && p[1] === 'status' && method === 'POST') { // requiere sesión: no es un proxy abierto
+    const a = auth(req); throttle(`sat:${a.userId}`);
+    const b = await readJson(req);
+    try { return await consultaSat({ re: String(b.re ?? '').toUpperCase(), rr: String(b.rr ?? '').toUpperCase(), total: String(b.total ?? ''), uuid: String(b.uuid ?? '').toUpperCase() }); }
+    catch (e) { throw new HttpError(502, e instanceof Error ? e.message : 'No se pudo consultar al SAT'); }
   }
 
   if (p[0] === 'me' && method === 'GET') { const a = auth(req); return { email: a.email, memberships: memberships(a.userId) }; }

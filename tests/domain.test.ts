@@ -79,3 +79,20 @@ test('permisos del portal', () => {
   assert.equal(canChangeDocStatus('cliente'), false);
   assert.equal(canChangeDocStatus('propietario'), true);
 });
+
+import { toB64, fromB64, makeBackup, parseBackup } from '../src/backup.ts';
+test('respaldo: ida y vuelta con archivos binarios', async () => {
+  const bytes = new Uint8Array([0, 1, 2, 250, 255, 128, 7]);
+  assert.deepEqual(Array.from(fromB64(toB64(bytes))), Array.from(bytes));
+  const d = emptyData();
+  d.clients = clients;
+  d.docs = [{ id: 'd', clientId: 'c1', category: 'x', period: '', name: 'a.bin', mime: 'a/b', size: 7, fileKey: 'k1', status: 'Completo', createdAt: '', uploadedBy: 'despacho' },
+    { id: 'e', clientId: 'c1', category: 'x', period: '', name: 'perdido.bin', mime: '', size: 1, fileKey: 'k2', status: 'Completo', createdAt: '', uploadedBy: 'despacho' }];
+  const { json, missing } = await makeBackup(d, async k => (k === 'k1' ? bytes : null));
+  assert.deepEqual(missing, ['perdido.bin']);
+  const b = parseBackup(json);
+  assert.equal(b.data.clients.length, 2);
+  assert.deepEqual(Array.from(fromB64(b.files[0].b64)), Array.from(bytes));
+  assert.throws(() => parseBackup('{"format":"otro"}'));
+  assert.throws(() => parseBackup('no json'));
+});

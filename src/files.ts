@@ -20,10 +20,32 @@ export async function removeFile(key: string): Promise<void> {
   const f = new File(dir(), key);
   if (f.exists) f.delete();
 }
-export async function exportText(name: string, text: string): Promise<void> {
+export async function exportText(name: string, text: string, mime = 'text/csv'): Promise<void> {
   const f = new File(Paths.cache, name);
   if (f.exists) f.delete();
   f.create();
   f.write(text);
-  await Sharing.shareAsync(f.uri, { mimeType: 'text/csv' });
+  await Sharing.shareAsync(f.uri, { mimeType: mime });
 }
+
+export async function readUri(uri: string): Promise<Uint8Array> {
+  return new File(uri).bytes();
+}
+export async function readBytes(key: string): Promise<Uint8Array | null> {
+  const f = new File(dir(), key);
+  return f.exists ? f.bytes() : null;
+}
+export async function writeBytes(key: string, bytes: Uint8Array): Promise<void> {
+  const f = new File(dir(), key);
+  if (f.exists) f.delete();
+  f.create();
+  f.write(bytes);
+}
+export async function saveBytes(name: string, bytes: Uint8Array, mime: string): Promise<void> {
+  const f = new File(Paths.cache, name.replace(/[^\w.\-]+/g, '_'));
+  if (f.exists) f.delete();
+  f.create();
+  f.write(bytes);
+  await Sharing.shareAsync(f.uri, { mimeType: mime || undefined });
+}
+export async function requestPersistence(): Promise<boolean> { return true; }

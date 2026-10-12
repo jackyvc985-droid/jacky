@@ -21,13 +21,12 @@ const OWNER_NAV: [Key, string][] = [['inicio', 'Inicio'], ['clientes', 'Clientes
 const CLIENT_NAV: [Key, string][] = [['inicio', 'Mi expediente'], ['documentos', 'Documentos'], ['proyectos', 'Proyectos'], ['tareas', 'Pendientes'], ['movimientos', 'Cifras'], ['nominas', 'Nóminas'], ['resultados', 'Resultados']];
 
 function Shell() {
-  const { ready, mode, previewClientId, setPreviewClientId, data } = useStore();
+  const { ready, mode, previewClientId, setPreviewClientId, data, role, notice, clearNotice, sync, session } = useStore();
   const [screen, setScreen] = useState<Key>('inicio');
   const [docClient, setDocClient] = useState('');
   const { width } = useWindowDimensions();
   const wide = width >= 820;
-  const role = previewClientId ? 'cliente' : 'propietario';
-  const nav = role === 'cliente' ? CLIENT_NAV : OWNER_NAV;
+  const nav = role === 'cliente' ? (previewClientId ? CLIENT_NAV : [...CLIENT_NAV, ['config', 'Cuenta'] as [Key, string]]) : OWNER_NAV;
   const current: Key = nav.some(n => n[0] === screen) ? screen : 'inicio';
 
   if (!ready) return <View style={{ flex: 1, justifyContent: 'center' }}><ActivityIndicator size="large" color={theme.primary} /></View>;
@@ -68,6 +67,12 @@ function Shell() {
         <View style={s.demo}><Text style={s.demoT}>MODO DEMOSTRACIÓN · datos de ejemplo, no se guardan</Text>
           <Btn small kind="ghost" label="Configurar" onPress={() => setScreen('config')} /></View>
       )}
+      {mode === 'cloud' && session && !previewClientId && (
+        <View style={s.cloud}><Text style={s.cloudT}>NUBE · {session.email} · {sync.state === 'saving' ? 'guardando…' : sync.state === 'error' ? `sin sincronizar (${sync.message})` : 'sincronizado'}</Text></View>
+      )}
+      {notice ? (
+        <View style={{ padding: 8 }}><Banner tone="warn">{notice}</Banner><View style={{ alignSelf: 'flex-start', marginTop: 6 }}><Btn small kind="ghost" label="Entendido" onPress={clearNotice} /></View></View>
+      ) : null}
       {previewClientId && (
         <View style={{ padding: 8 }}><Banner tone="info">Vista previa de cliente: {data.clients.find(c => c.id === previewClientId)?.name}. No modifica los permisos reales.</Banner>
           <View style={{ alignSelf: 'flex-start', marginTop: 6 }}><Btn small label="Salir de la vista previa" onPress={() => setPreviewClientId('')} /></View></View>
@@ -92,5 +97,7 @@ const s = StyleSheet.create({
   itemOn: { backgroundColor: theme.primary },
   itemT: { color: theme.text, fontWeight: '600', fontSize: 14 },
   demo: { backgroundColor: '#fef3c7', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6 },
+  cloud: { backgroundColor: '#dcfce7', paddingHorizontal: 12, paddingVertical: 4 },
+  cloudT: { color: '#166534', fontSize: 12, fontWeight: '700' },
   demoT: { color: '#92400e', fontSize: 12, fontWeight: '700', flex: 1 },
 });

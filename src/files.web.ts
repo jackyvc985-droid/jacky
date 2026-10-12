@@ -33,6 +33,24 @@ export async function openFile(key: string, name: string, _mime: string): Promis
 export async function removeFile(key: string): Promise<void> {
   await tx('readwrite', s => s.delete(key));
 }
-export async function exportText(name: string, text: string): Promise<void> {
-  download(new Blob([text], { type: 'text/csv;charset=utf-8' }), name);
+export async function exportText(name: string, text: string, mime = 'text/csv'): Promise<void> {
+  download(new Blob([text], { type: `${mime};charset=utf-8` }), name);
+}
+
+export async function readUri(uri: string): Promise<Uint8Array> {
+  return new Uint8Array(await (await fetch(uri)).arrayBuffer());
+}
+export async function readBytes(key: string): Promise<Uint8Array | null> {
+  const blob = await tx<Blob | undefined>('readonly', s => s.get(key));
+  return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+}
+export async function writeBytes(key: string, bytes: Uint8Array): Promise<void> {
+  await tx('readwrite', s => s.put(new Blob([bytes as BlobPart]), key));
+}
+export async function saveBytes(name: string, bytes: Uint8Array, mime: string): Promise<void> {
+  download(new Blob([bytes as BlobPart], { type: mime || 'application/octet-stream' }), name);
+}
+/** Pide al navegador que no borre el almacenamiento de la app bajo presión de espacio. */
+export async function requestPersistence(): Promise<boolean> {
+  try { return (await navigator.storage?.persist?.()) ?? false; } catch { return false; }
 }
