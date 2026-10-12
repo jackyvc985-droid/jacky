@@ -97,6 +97,11 @@ export function confirmAction(msg: string, onYes: () => void) {
   const { Alert } = require('react-native');
   Alert.alert('Confirmar', msg, [{ text: 'Cancelar', style: 'cancel' }, { text: 'Aceptar', style: 'destructive', onPress: onYes }]);
 }
+export function askConfirm(msg: string): Promise<boolean> {
+  if (Platform.OS === 'web') return Promise.resolve(typeof window !== 'undefined' && window.confirm(msg));
+  const { Alert } = require('react-native');
+  return new Promise(res => Alert.alert('Confirmar', msg, [{ text: 'Cancelar', style: 'cancel', onPress: () => res(false) }, { text: 'Eliminar', style: 'destructive', onPress: () => res(true) }], { cancelable: true, onDismiss: () => res(false) }));
+}
 export function notify(msg: string) {
   if (Platform.OS === 'web') { if (typeof window !== 'undefined') window.alert(msg); return; }
   require('react-native').Alert.alert('Aviso', msg);

@@ -181,6 +181,31 @@ const routes: Handler = async (req, res, p, url) => {
     catch (e) { throw new HttpError(502, e instanceof Error ? e.message : 'No se pudo consultar al SAT'); }
   }
 
+  if (p[0] === 'me' && method === 'DELETE') { // eliminación de cuenta y datos (exigida por las tiendas)
+    const a = auth(req);
+    const b = await readJson(req);
+    throttle(`del:${a.userId}`);
+    const u = db.prepare('SELECT salt, hash FROM users WHERE id=?').get(a.userId) as { salt: string; hash: string };
+    if (!checkPassword(String(b.password ?? ''), u.salt, u.hash)) throw new HttpError(401, 'Contraseña incorrecta');
+    const owned = db.prepare("SELECT workspace_id AS id FROM members WHERE user_id=? AND role='propietario'").all(a.userId) as { id: string }[];
+    if (owned.length && b.deleteOwnedWorkspaces !== true) {
+      throw new HttpError(409, 'Esta cuenta es propietaria de espacios. Confirma que se eliminarán con todos sus datos y archivos.', { ownedWorkspaces: owned.length });
+    }
+    for (const w of owned) {
+      fs.rmSync(path.join(DATA_DIR, 'files', w.id), { recursive: true, force: true });
+      for (const t of ['files', 'invites', 'members']) db.prepare(`DELETE FROM ${t} WHERE workspace_id=?`).run(w.id);
+      db.prepare('DELETE FROM workspaces WHERE id=?').run(w.id);
+      db.prepare('UPDATE audit SET user_id=NULL, detail=\'\' WHERE workspace_id=?').run(w.id);
+    }
+    db.prepare('DELETE FROM members WHERE user_id=?').run(a.userId);
+    db.prepare('DELETE FROM sessions WHERE user_id=?').run(a.userId);
+    db.prepare('DELETE FROM invites WHERE email=?').run(a.email);
+    db.prepare('DELETE FROM users WHERE id=?').run(a.userId);
+    db.prepare("UPDATE audit SET user_id=NULL, detail='' WHERE user_id=?").run(a.userId); // se conserva el evento sin datos personales
+    audit(null, null, 'account.deleted', `workspaces:${owned.length}`);
+    return { ok: true, deletedWorkspaces: owned.length };
+  }
+
   if (p[0] === 'me' && method === 'GET') { const a = auth(req); return { email: a.email, memberships: memberships(a.userId) }; }
 
   if (p[0] === 'ws' && p[1]) {

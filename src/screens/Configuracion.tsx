@@ -3,9 +3,9 @@ import { TextInput, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as DocumentPicker from 'expo-document-picker';
 import { useStore } from '../store';
-import { Badge, Banner, Btn, Card, confirmAction, H2, Muted, notify, Page, Row, T, theme } from '../ui/kit.tsx';
+import { Badge, Banner, Btn, Card, askConfirm, confirmAction, FormModal, H2, Muted, notify, Page, Row, T, theme } from '../ui/kit.tsx';
 import { useDocFiles } from '../docs';
-import { DEFAULT_API, api, fetchData, putData, putFileCloud } from '../cloud';
+import { ApiError, DEFAULT_API, api, fetchData, putData, putFileCloud } from '../cloud';
 import { exportText, readBytes as localRead, requestPersistence, writeBytes as localWrite } from '../files';
 import { fromB64, makeBackup, parseBackup } from '../backup.ts';
 import { emptyData } from '../domain/types.ts';
@@ -26,6 +26,7 @@ export default function Configuracion() {
   const [busy, setBusy] = useState(false);
   const [audit, setAudit] = useState<{ action: string; detail: string; at: string }[]>([]);
   const [persisted, setPersisted] = useState<boolean | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const isOwnerCloud = mode === 'cloud' && session && st.role === 'propietario';
 
   useEffect(() => {
@@ -105,6 +106,7 @@ export default function Configuracion() {
               <Btn small kind="ghost" label="Consultar ahora" onPress={() => run(st.refresh)} />
               <Btn small kind="danger" label="Cerrar sesión" onPress={() => confirmAction('¿Cerrar sesión en este dispositivo?', () => { st.logout(); })} />
             </Row>
+            <Btn small kind="danger" label="Eliminar mi cuenta y mis datos" onPress={() => setDeleting(true)} />
             {st.role === 'cliente' && <Muted>Eres cliente del portal: ves solo tu expediente y puedes subir documentos.</Muted>}
             <Muted>Código de invitación recibido:</Muted>
             <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -153,6 +155,22 @@ export default function Configuracion() {
           {audit.length === 0 && <Muted>Sin eventos.</Muted>}
           {audit.map((a, i) => <Row key={i}><T>{a.action}</T><Muted>{a.detail} · {a.at.slice(0, 16).replace('T', ' ')}</Muted></Row>)}
         </Card>
+      )}
+      {deleting && session && (
+        <FormModal title="Eliminar cuenta y datos" fields={[{ key: 'password', label: 'Confirma tu contraseña', required: true }]} initial={{}} onClose={() => setDeleting(false)}
+          extra={<Muted style={{ marginTop: 10 }}>Se eliminará tu cuenta y tu acceso. Si eres propietario, también se borrarán de forma definitiva los espacios que posees: clientes, registros y archivos. Se conserva únicamente una bitácora sin datos personales. Si debes conservar información por obligaciones legales, descarga un respaldo antes. Esta acción no se puede deshacer.</Muted>}
+          onSubmit={async v => {
+            const call = (confirmOwned: boolean) => api(session.apiUrl, session.token, 'DELETE', '/me', { password: v.password, deleteOwnedWorkspaces: confirmOwned });
+            try { await call(false); }
+            catch (e) {
+              if (e instanceof ApiError && e.status === 409) {
+                const ok = await askConfirm(`${e.message}\n\n¿Eliminar definitivamente?`);
+                if (!ok) throw new Error('Eliminación cancelada');
+                await call(true);
+              } else throw e;
+            }
+            setDeleting(false); await st.logout(); notify('Tu cuenta y tus datos en la nube fueron eliminados.');
+          }} />
       )}
       <Banner tone="warn">Esta aplicación no sustituye la asesoría de un contador ni garantiza certeza jurídica o contable.</Banner>
     </Page>

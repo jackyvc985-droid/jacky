@@ -29,6 +29,9 @@ La app abre en **demostración** (identificada como tal; los datos no se guardan
 - **Nube**: cuentas, espacios, portal de clientes con invitación por código, revisión optimista (nunca sobrescribe cambios ajenos sin avisar), consulta de cambios cada 15 s, eliminación física de archivos, bitácora y respaldos.
 - **Respaldo**: descarga/restauración de un archivo con datos y documentos; solicitud de protección de almacenamiento al navegador.
 
+## Publicar en tiendas
+Ver `docs/publicacion-y-derechos.md` (estado técnico verificado, decisiones pendientes de Canville, inventario de datos y expediente de derechos) y `docs/THIRD_PARTY_LICENSES.md`.
+
 ## Verificado
 `npm test` (25 pruebas: cálculos, CSV, permisos, respaldo, fiscal y 8 pruebas de integración del servidor), `tsc --noEmit`, `expo export --platform web` y recorridos en Chromium (escritorio y 390 px) del modo local y del flujo completo en la nube: cuenta de despacho, cliente invitado que solo ve su expediente, subida del cliente, conflicto entre dos dispositivos, revocación, respaldo y migración local→nube.
 

@@ -102,3 +102,27 @@ test('otro propietario no ve el espacio ajeno', async () => {
   const r = await call('POST', '/auth/register', undefined, { email: 'otro@x.co', password: 'contraseña-larga-1' });
   assert.equal((await call('GET', `/ws/${ws}/data`, r.json.token)).status, 404);
 });
+
+test('eliminación de cuenta: exige contraseña; cliente sale sin tocar al despacho; propietario borra espacio y archivos', async () => {
+  const o = await call('POST', '/auth/register', undefined, { email: 'borrar@x.co', password: 'contraseña-larga-1', workspaceName: 'Temporal' });
+  const tok = o.json.token, w = o.json.memberships[0].workspaceId;
+  const g = await call('GET', `/ws/${w}/data`, tok);
+  g.json.data.clients = [{ id: 'k1', name: 'K', rfc: '', email: '', phone: '', status: 'Activo', notes: '' }];
+  await call('PUT', `/ws/${w}/data`, tok, { baseRev: g.json.rev, data: g.json.data });
+  await call('PUT', `/ws/${w}/files/archivoXYZ1`, tok, Buffer.from('x'), { 'x-name': 'a' });
+  const inv = await call('POST', `/ws/${w}/invites`, tok, { email: 'cli-borra@x.co', clientId: 'k1' });
+  const c = await call('POST', '/auth/register', undefined, { email: 'cli-borra@x.co', password: 'contraseña-larga-1', inviteCode: inv.json.code });
+
+  assert.equal((await call('DELETE', '/me', c.json.token, { password: 'incorrecta' })).status, 401);
+  assert.equal((await call('DELETE', '/me', c.json.token, { password: 'contraseña-larga-1' })).status, 200);
+  assert.equal((await call('GET', '/me', c.json.token)).status, 401);            // su sesión murió
+  assert.equal((await call('GET', `/ws/${w}/data`, tok)).status, 200);            // el despacho sigue intacto
+  assert.equal((await call('POST', '/auth/login', undefined, { email: 'cli-borra@x.co', password: 'contraseña-larga-1' })).status, 401);
+
+  const noConfirm = await call('DELETE', '/me', tok, { password: 'contraseña-larga-1' });
+  assert.equal(noConfirm.status, 409);                                            // pide confirmar la eliminación de espacios
+  assert.equal((await call('GET', `/ws/${w}/data`, tok)).status, 200);
+  assert.equal((await call('DELETE', '/me', tok, { password: 'contraseña-larga-1', deleteOwnedWorkspaces: true })).status, 200);
+  assert.equal(fs.existsSync(path.join(process.env.DATA_DIR!, 'files', w)), false);
+  assert.equal((await call('GET', `/ws/${w}/data`, tok)).status, 401);
+});
