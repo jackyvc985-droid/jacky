@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#4f46e5">
+<title>Mis Tareas</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <h1>Mis Tareas</h1>
+  <form id="form">
+    <input id="input" placeholder="Nueva tarea..." autocomplete="off" required>
+    <button>Agregar</button>
+  </form>
+  <nav id="filters">
+    <button data-f="all" class="on">Todas</button>
+    <button data-f="open">Pendientes</button>
+    <button data-f="done">Hechas</button>
+  </nav>
+  <ul id="list"></ul>
+  <p id="count"></p>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
