@@ -10,12 +10,14 @@ import { totals } from '../domain/accounting.ts';
 import { exportText } from '../files';
 import { clientName, clientOptions, Role, thisPeriod, today } from './common.ts';
 import { TextInput } from 'react-native';
+import EstadoDeCuenta from './EstadoDeCuenta';
 
 export default function Movimientos({ role }: { role: Role }) {
   const { view, data, upsert, remove, add } = useStore();
   const [edit, setEdit] = useState<Movement | 'new' | null>(null);
   const [imp, setImp] = useState<{ text: string; res: ImportResult } | null>(null);
   const [period, setPeriod] = useState(thisPeriod());
+  const [stmt, setStmt] = useState(false);
   const list = view.movements.filter(m => m.date.startsWith(period)).sort((a, b) => b.date.localeCompare(a.date));
   const t = totals(list);
 
@@ -34,6 +36,7 @@ export default function Movimientos({ role }: { role: Role }) {
 
   return (
     <Page title={role === 'cliente' ? 'Mis cifras' : 'Movimientos'} actions={role === 'propietario' ? <>
+      <Btn small kind="ghost" label="Importar estado de cuenta" onPress={() => setStmt(true)} />
       <Btn small kind="ghost" label="Importar CSV" onPress={() => setImp({ text: '', res: { rows: [], errors: [] } })} />
       <Btn small kind="ghost" label="Exportar CSV" onPress={() => exportText(`movimientos-${period}.csv`, movementsToCSV(list, data.clients)).catch(e => notify(e.message))} />
       <Btn label="+ Movimiento" onPress={() => setEdit('new')} /></> : undefined}>
@@ -55,6 +58,7 @@ export default function Movimientos({ role }: { role: Role }) {
           </Row>
         ))}
       </Card>
+      {stmt && <EstadoDeCuenta onClose={() => setStmt(false)} />}
       {edit && <FormModal title={edit === 'new' ? 'Nuevo movimiento' : 'Editar movimiento'} onClose={() => setEdit(null)} onSubmit={save}
         initial={edit === 'new' ? { date: today(), type: 'ingreso' } : { ...edit, amount: (edit.amountCents / 100).toFixed(2) }}
         fields={[

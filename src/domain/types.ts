@@ -4,7 +4,7 @@ export type Client = { id: Id; name: string; rfc: string; email: string; phone: 
 
 export const DOC_CATEGORIES = [
   'Constancia de situación fiscal', 'Opinión de cumplimiento', 'Declaración', 'Acuse',
-  'Comprobante de pago', 'CFDI/Factura', 'Nómina', 'Contrato',
+  'Comprobante de pago', 'CFDI/Factura', 'Nómina', 'Contrato', 'Estado de cuenta',
 ] as const;
 export type DocStatus = 'Pendiente' | 'En revisión' | 'Completo';
 export type Doc = {
@@ -18,7 +18,17 @@ export type Project = { id: Id; name: string; clientId: Id; status: 'Planeado' |
 export type MovementType = 'ingreso' | 'gasto';
 export type Movement = { id: Id; date: string; type: MovementType; concept: string; category: string; amountCents: number; clientId: Id | '' };
 export type Budget = { category: string; clientId: Id | ''; period: string; limitCents: number };
-export type PayrollCalc = { isrCents: number; imssCents: number; subsidyAppliedCents: number; otherCents: number; tablesYear: number };
+export type PayrollDetail = {
+  salaryCents: number; otherTaxableCents: number; exemptCents: number; taxableCents: number;
+  isr: { lowerCents: number; upperCents: number | null; excessCents: number; rateBp: number; marginalCents: number; fixedCents: number; causedCents: number };
+  subsidyLimitCents: number;
+  dailySalaryCents: number; sbcDailyCents: number; integrationFactor: number; days: number; umaDailyCents: number;
+  imssItems: { label: string; baseCents: number; rateBp: number; cents: number }[];
+};
+export type PayrollCalc = {
+  isrCents: number; imssCents: number; subsidyAppliedCents: number; otherCents: number; tablesYear: number;
+  detail?: PayrollDetail; // desglose paso a paso (nóminas calculadas antes de esta versión no lo tienen)
+};
 export type Payroll = {
   id: Id; employee: string; clientId: Id | ''; period: string; perceptionsCents: number; deductionsCents: number;
   /** Subsidio para el empleo que excede el ISR y se entrega al trabajador (solo cálculo automático). */

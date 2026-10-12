@@ -1,4 +1,5 @@
-import type { Data } from './domain/types.ts';
+import type { Data, Payroll } from './domain/types.ts';
+import { calcPayroll } from './domain/fiscal.ts';
 
 const today = new Date();
 const iso = (monthsAgo: number, day: number) => {
@@ -6,6 +7,14 @@ const iso = (monthsAgo: number, day: number) => {
   return d.toISOString().slice(0, 10);
 };
 const per = (m: number) => iso(m, 1).slice(0, 7);
+
+function payroll(id: string, employee: string, clientId: string, input: Parameters<typeof calcPayroll>[0]): Payroll {
+  const r = calcPayroll(input);
+  return {
+    id, employee, clientId, period: per(0), perceptionsCents: r.grossCents, deductionsCents: r.deductionsTotal, subsidyPaidCents: r.subsidyPaid,
+    calc: { isrCents: r.isrWithheld, imssCents: r.imss, subsidyAppliedCents: r.subsidyApplied, otherCents: r.other, tablesYear: r.tablesYear, detail: r.detail },
+  };
+}
 
 /** Datos de demostración: solo existen en memoria, nunca se suben ni se guardan. */
 export function demoData(): Data {
@@ -42,7 +51,11 @@ export function demoData(): Data {
       { category: 'Software', clientId: '', period: per(0), limitCents: 280000 },
       { category: 'Renta', clientId: '', period: per(0), limitCents: 1400000 },
     ],
-    payrolls: [{ id: 'n1', employee: 'Ana López', clientId: 'c1', period: per(0), perceptionsCents: 1500000, deductionsCents: 210000 }],
+    payrolls: [
+      payroll('n1', 'Ana López', 'c1', { salaryCents: 1500000, dailySalaryCents: 50000, days: 30 }),
+      payroll('n2', 'Luis Pérez', 'c1', { salaryCents: 980000, otherTaxableCents: 120000, exemptCents: 80000, dailySalaryCents: 32667, days: 30, otherDeductionsCents: 150000 }),
+      payroll('n3', 'Marta Ruiz', 'c2', { salaryCents: 850000, dailySalaryCents: 28333, days: 30 }),
+    ],
     obligations: [
       { id: 'o1', name: 'Declaración mensual ISR/IVA', clientId: 'c1', dueDate: iso(0, 17), amountCents: 320000, status: 'Pendiente' },
       { id: 'o2', name: 'DIOT', clientId: 'c2', dueDate: iso(0, 17), amountCents: 0, status: 'Presentada' },

@@ -1,7 +1,7 @@
 import { parseMoney } from './money.ts';
 import type { Client, Movement } from './types.ts';
 
-export function parseCSV(text: string): string[][] {
+export function parseCSV(text: string, delimiter = ','): string[][] {
   const rows: string[][] = [];
   let row: string[] = [], cell = '', q = false;
   const src = text.replace(/^﻿/, '');
@@ -11,7 +11,7 @@ export function parseCSV(text: string): string[][] {
       if (c === '"') { if (src[i + 1] === '"') { cell += '"'; i++; } else q = false; }
       else cell += c;
     } else if (c === '"') q = true;
-    else if (c === ',') { row.push(cell); cell = ''; }
+    else if (c === delimiter) { row.push(cell); cell = ''; }
     else if (c === '\n' || c === '\r') {
       if (c === '\r' && src[i + 1] === '\n') i++;
       row.push(cell); cell = '';

@@ -19,27 +19,52 @@ test('ISR mensual conocido', () => {
 });
 
 test('subsidio: aplica bajo el límite y se entrega el excedente al trabajador', () => {
-  const low = calcPayroll({ perceptionsCents: 800000, dailySalaryCents: 26000, days: 30 });
+  const low = calcPayroll({ salaryCents: 800000, dailySalaryCents: 26000, days: 30 });
   assert.equal(low.subsidyApplied, 53565);
   assert.equal(low.isrWithheld, Math.max(0, low.isrBeforeSubsidy - 53565));
-  const tiny = calcPayroll({ perceptionsCents: 50000, dailySalaryCents: 1700, days: 30 });
+  const tiny = calcPayroll({ salaryCents: 50000, dailySalaryCents: 1700, days: 30 });
   assert.equal(tiny.isrWithheld, 0);
   assert.ok(tiny.subsidyPaid > 0);
-  const high = calcPayroll({ perceptionsCents: 1500000, dailySalaryCents: 50000, days: 30 });
+  const high = calcPayroll({ salaryCents: 1500000, dailySalaryCents: 50000, days: 30 });
   assert.equal(high.subsidyApplied, 0);
   assert.equal(high.isrWithheld, 140282);
 });
 
-test('IMSS obrero: tasa fija 2.375 % y 0.40 % sobre excedente de 3 UMA', () => {
-  const r = calcPayroll({ perceptionsCents: 1500000, dailySalaryCents: 50000, days: 30, integrationFactor: 1 });
+test('IMSS obrero por concepto: 0.40 % del excedente de 3 UMA y 2.375 % del SBC', () => {
+  const r = calcPayroll({ salaryCents: 1500000, dailySalaryCents: 50000, days: 30, integrationFactor: 1 });
   const sbc = 50000, exc = sbc - 3 * 11731;
-  assert.equal(r.imss, Math.round(exc * 40 * 30 / 10000) + Math.round(sbc * 237.5 * 30 / 10000));
+  const it = r.detail.imssItems;
+  assert.equal(it.length, 5);
+  assert.equal(it[0].cents, Math.round(exc * 30 * 40 / 10000));
+  assert.deepEqual(it.slice(1).map(x => x.rateBp), [25, 37.5, 62.5, 112.5]);
+  assert.equal(r.imss, it.reduce((a, x) => a + x.cents, 0));
   assert.equal(r.net, 1500000 - r.deductionsTotal + r.subsidyPaid);
 });
 
+test('desglose de ISR: cuota fija + excedente × tasa = ISR causado', () => {
+  const r = calcPayroll({ salaryCents: 1500000, dailySalaryCents: 50000, days: 30 });
+  const d = r.detail.isr;
+  assert.equal(d.lowerCents, 1464465);
+  assert.equal(d.excessCents, 1500000 - 1464465);
+  assert.equal(d.rateBp, 1792);
+  assert.equal(d.fixedCents + d.marginalCents, d.causedCents);
+  assert.equal(d.causedCents, 140282);
+});
+
+test('percepciones: exentas no entran a la base; otras gravadas sí; el neto suma todo', () => {
+  const base = calcPayroll({ salaryCents: 1000000, dailySalaryCents: 33000, days: 30 });
+  const ext = calcPayroll({ salaryCents: 1000000, exemptCents: 200000, dailySalaryCents: 33000, days: 30 });
+  assert.equal(ext.isrBeforeSubsidy, base.isrBeforeSubsidy);
+  assert.equal(ext.net, base.net + 200000);
+  assert.equal(ext.grossCents, 1200000);
+  const bono = calcPayroll({ salaryCents: 1000000, otherTaxableCents: 200000, dailySalaryCents: 33000, days: 30 });
+  assert.ok(bono.isrBeforeSubsidy > base.isrBeforeSubsidy);
+  assert.equal(bono.taxableCents, 1200000);
+});
+
 test('IMSS: tope de 25 UMA', () => {
-  const r = calcPayroll({ perceptionsCents: 9000000, dailySalaryCents: 1000000, days: 30 });
-  assert.equal(r.sbcDaily, 25 * 11731);
+  const r = calcPayroll({ salaryCents: 9000000, dailySalaryCents: 1000000, days: 30 });
+  assert.equal(r.detail.sbcDailyCents, 25 * 11731);
 });
 
 const CFDI = (total = '116.00', extra = '') => `<?xml version="1.0"?>

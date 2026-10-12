@@ -7,6 +7,8 @@
  * un contador debe validarlas antes de usarlas en una operación formal.
  * Importes en centavos; porcentajes en puntos base (1 % = 100 pb).
  */
+import type { PayrollDetail } from './types.ts';
+
 export type IsrRow = { lower: number; upper: number; fixed: number; rateBp: number };
 
 export const TABLES_2026 = {
@@ -51,28 +53,56 @@ export function isrMonthly(baseCents: number): number {
 }
 
 export type PayrollInput = {
-  perceptionsCents: number;     // percepciones gravadas del mes
-  dailySalaryCents: number;     // salario diario (para SBC)
-  days: number;                 // días del periodo (IMSS)
+  salaryCents: number;           // sueldo del periodo
+  otherTaxableCents?: number;    // otras percepciones gravadas (bonos, comisiones…)
+  exemptCents?: number;          // percepciones exentas (no entran a la base de ISR ni de IMSS)
+  dailySalaryCents: number;      // salario diario (para SBC)
+  days: number;                  // días del periodo (IMSS)
   integrationFactor?: number;
   otherDeductionsCents?: number; // INFONAVIT/pensión alimenticia/etc. capturadas
 };
 export type PayrollBreakdown = {
+  grossCents: number; taxableCents: number;
   isrBeforeSubsidy: number; subsidyApplied: number; isrWithheld: number; subsidyPaid: number;
-  imss: number; sbcDaily: number; other: number; deductionsTotal: number; net: number; tablesYear: number;
+  imss: number; other: number; deductionsTotal: number; net: number; tablesYear: number;
+  detail: PayrollDetail;
 };
 
 export function calcPayroll(i: PayrollInput): PayrollBreakdown {
   const T = TABLES_2026;
-  const isr = isrMonthly(i.perceptionsCents);
-  const sub = i.perceptionsCents > 0 && i.perceptionsCents <= T.subsidioIncomeLimit ? T.subsidioMonthly : 0;
-  const isrWithheld = Math.max(0, isr - sub);
-  const subsidyPaid = Math.max(0, sub - isr); // excedente de subsidio que se entrega al trabajador
+  const otherTaxable = i.otherTaxableCents ?? 0, exempt = i.exemptCents ?? 0;
+  const taxable = i.salaryCents + otherTaxable;
+  const gross = taxable + exempt;
+
+  const row = isrRow(taxable);
+  const excess = taxable > 0 ? taxable - row.lower : 0;
+  const marginal = taxable > 0 ? Math.round((excess * row.rateBp) / 10000) : 0;
+  const caused = taxable > 0 ? row.fixed + marginal : 0;
+  const sub = taxable > 0 && taxable <= T.subsidioIncomeLimit ? T.subsidioMonthly : 0;
+  const isrWithheld = Math.max(0, caused - sub);
+  const subsidyPaid = Math.max(0, sub - caused); // excedente de subsidio que se entrega al trabajador
+
   const factor = i.integrationFactor ?? T.defaultIntegrationFactor;
   const sbcDaily = Math.min(Math.round(i.dailySalaryCents * factor), T.imss.sbcCapUma * T.umaDaily);
-  const excess = Math.max(0, sbcDaily - 3 * T.umaDaily);
-  const imss = Math.round((excess * T.imss.excedente3UmaBp * i.days) / 10000) + Math.round((sbcDaily * T.imss.fixedObreroBp * i.days) / 10000);
+  const excessSbc = Math.max(0, sbcDaily - 3 * T.umaDaily);
+  const item = (label: string, baseCents: number, rateBp: number) => ({ label, baseCents, rateBp, cents: Math.round((baseCents * rateBp) / 10000) });
+  const imssItems = [
+    item('Enfermedad y maternidad · excedente de 3 UMA', excessSbc * i.days, T.imss.excedente3UmaBp),
+    item('Enfermedad y maternidad · prestaciones en dinero', sbcDaily * i.days, 25),
+    item('Enfermedad y maternidad · gastos médicos de pensionados', sbcDaily * i.days, 37.5),
+    item('Invalidez y vida', sbcDaily * i.days, 62.5),
+    item('Cesantía en edad avanzada y vejez', sbcDaily * i.days, 112.5),
+  ];
+  const imss = imssItems.reduce((a, x) => a + x.cents, 0);
   const other = i.otherDeductionsCents ?? 0;
   const deductionsTotal = isrWithheld + imss + other;
-  return { isrBeforeSubsidy: isr, subsidyApplied: sub, isrWithheld, subsidyPaid, imss, sbcDaily, other, deductionsTotal, net: i.perceptionsCents - deductionsTotal + subsidyPaid, tablesYear: T.year };
+  return {
+    grossCents: gross, taxableCents: taxable, isrBeforeSubsidy: caused, subsidyApplied: sub, isrWithheld, subsidyPaid, imss, other, deductionsTotal,
+    net: gross - deductionsTotal + subsidyPaid, tablesYear: T.year,
+    detail: {
+      salaryCents: i.salaryCents, otherTaxableCents: otherTaxable, exemptCents: exempt, taxableCents: taxable,
+      isr: { lowerCents: row.lower, upperCents: Number.isFinite(row.upper) ? row.upper : null, excessCents: excess, rateBp: row.rateBp, marginalCents: marginal, fixedCents: taxable > 0 ? row.fixed : 0, causedCents: caused },
+      subsidyLimitCents: T.subsidioIncomeLimit, dailySalaryCents: i.dailySalaryCents, sbcDailyCents: sbcDaily, integrationFactor: factor, days: i.days, umaDailyCents: T.umaDaily, imssItems,
+    },
+  };
 }
