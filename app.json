@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "Canville",
+    "slug": "canville",
+    "version": "1.0.0",
+    "orientation": "default",
+    "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
+    "splash": { "image": "./assets/icon.png", "resizeMode": "contain", "backgroundColor": "#1e3a8a" },
+    "ios": { "supportsTablet": true, "bundleIdentifier": "mx.canville.app" },
+    "android": { "package": "mx.canville.app", "adaptiveIcon": { "foregroundImage": "./assets/icon.png", "backgroundColor": "#1e3a8a" } },
+    "web": { "bundler": "metro", "output": "single", "favicon": "./assets/icon.png", "name": "Canville", "shortName": "Canville", "themeColor": "#1e3a8a", "backgroundColor": "#f3f4f8" },
+    "plugins": ["expo-document-picker"]
+  }
+}
