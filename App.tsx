@@ -56,7 +56,7 @@ function Shell() {
 
   const menu = (
     <ScrollView horizontal={!wide} style={wide ? s.side : s.top} contentContainerStyle={wide ? { padding: 12, gap: 4 } : { padding: 8, gap: 6 }} showsHorizontalScrollIndicator={false}>
-      {wide && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, paddingHorizontal: 8 }}><Image source={require('./assets/icon.png')} style={{ width: 30, height: 30, borderRadius: 6 }} accessibilityLabel="Canville" /><Text style={[s.brand, { marginBottom: 0, paddingHorizontal: 0 }]}>Canville</Text></View>}
+      {wide && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, paddingHorizontal: 8 }}><Image source={require('./assets/icon.png')} style={{ width: 30, height: 30, borderRadius: 6 }} accessibilityLabel="Canville" /><Text style={[s.brand, { marginBottom: 0, paddingHorizontal: 0, fontSize: 16, lineHeight: 18 }]}>Grupo{"\n"}Canville</Text></View>}
       {nav.map(([k, l]) => (
         <Pressable key={k} onPress={() => go(k)} style={[s.item, current === k && s.itemOn]}>
           <Text style={[s.itemT, current === k && { color: '#fff' }]}>{l}</Text>

@@ -71,3 +71,11 @@ test('estadísticas: filtro por cliente y periodo, distribución e insights dete
   assert.ok(!out.some(s => s.includes('Otro cliente')));            // no mezcla clientes
   assert.deepEqual(insights([], [], flt), []);                        // sin datos: sin inventar
 });
+
+import { PLANS, ivaCents, totalWithIva } from '../src/domain/plans.ts';
+test('planes: tres planes mensuales, IVA 16 % en centavos', () => {
+  assert.deepEqual(PLANS.map(p => p.id), ['esencial', 'profesional', 'empresarial']);
+  assert.deepEqual(PLANS.map(p => p.priceCents), [49900, 99900, 199900]);
+  assert.deepEqual(PLANS.map(p => totalWithIva(p.priceCents)), [57884, 115884, 231884]);
+  assert.equal(ivaCents(49900), 7984);
+});

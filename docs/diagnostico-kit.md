@@ -33,4 +33,4 @@ Leyenda: ✔ comprobado con pruebas automáticas y/o recorrido en navegador · �
 2. Aprobar la matriz de roles y permisos (en especial nómina y empleados).
 3. Modelo de cobro, precios, IVA y límites por plan.
 4. Dónde se aloja el servidor y la política de retención de copias.
-5. Razón social titular e identificador definitivo de la app (el actual, `mx.canville.app`, es provisional).
+5. Razón social titular e identificador definitivo de la app (el actual, `mx.grupocanville.app`, es provisional).

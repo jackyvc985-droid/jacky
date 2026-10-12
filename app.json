@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Canville",
-    "slug": "canville",
+    "name": "Grupo Canville",
+    "slug": "grupo-canville",
     "version": "1.1.0",
     "orientation": "default",
     "userInterfaceStyle": "light",
@@ -13,11 +13,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "mx.canville.app",
+      "bundleIdentifier": "mx.grupocanville.app",
       "buildNumber": "2"
     },
     "android": {
-      "package": "mx.canville.app",
+      "package": "mx.grupocanville.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
@@ -36,8 +36,8 @@
       "bundler": "metro",
       "output": "single",
       "favicon": "./assets/favicon.png",
-      "name": "Canville",
-      "shortName": "Canville",
+      "name": "Grupo Canville",
+      "shortName": "GCV",
       "themeColor": "#002D54",
       "backgroundColor": "#F6F8FB"
     },

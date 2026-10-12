@@ -23,8 +23,8 @@ Complementa la guía de publicación recibida. Aquí solo hay lo que se verific�
 - Cuentas de organización en Google Play y Apple Developer, firma, fichas, capturas, clasificación de edad, política de privacidad y términos.
 
 ## Decisiones que solo Canville puede tomar
-1. **Razón social titular** de las cuentas de tienda, de Expo, del dominio y del repositorio.
-2. **Identificador de la app.** Este repo usa `mx.canville.app` (Android `package` e iOS `bundleIdentifier`) como valor provisional. **No se puede cambiar una vez publicada**; la guía menciona otro identificador de otra versión (`space.manus…`): elijan uno, y cámbienlo en `app.json` antes del primer envío.
+1. **Razón social titular:** **GRUPO CANVILLE, S.A. DE C.V.** (indicada por JACKY). Debe ser la titular de las cuentas de Google Play, Apple Developer y Expo, del dominio y del repositorio. Las tiendas piden verificar la organización (incluido el número D-U-N-S), así que conviene tener a la mano acta constitutiva, RFC y datos del representante legal.
+2. **Nombre e identificador.** Nombre visible: **Grupo Canville** (nombre corto **GCV**). Identificador provisional: `mx.grupocanville.app` (Android `package` e iOS `bundleIdentifier`). **No se puede cambiar una vez publicada la app**; confirma antes del primer envío (si Grupo Canville tiene dominio propio, lo habitual es invertirlo).
 3. **Modelo de cobro.** Recomendación de la guía, coherente con el estado del producto: contratar y cobrar en la web, y publicar una app móvil gratuita de acceso a cuentas existentes, sin compras ni enlaces a un checkout externo dentro de la app. La pantalla «Planes» solo guarda una propuesta y no cobra; **si se publica en tiendas, hay que revisar con las políticas vigentes si debe ocultarse o reformularse en la app nativa.**
 4. Proveedor de alojamiento y su ubicación; política de conservación y de respaldos.
 

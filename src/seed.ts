@@ -61,6 +61,7 @@ export function demoData(): Data {
       { id: 'o1', name: 'Declaración mensual ISR/IVA', clientId: 'c1', dueDate: iso(0, 17), amountCents: 320000, status: 'Pendiente' },
       { id: 'o2', name: 'DIOT', clientId: 'c2', dueDate: iso(0, 17), amountCents: 0, status: 'Presentada' },
     ],
+    employees: [],
     forecasts: [
       { id: 'f1', concept: 'Honorarios del mes (Aurora)', kind: 'cobro', amountCents: 4500000, dueDate: addDays(localDate(), 6), clientId: 'c1', category: 'Servicios', status: 'Pendiente', note: 'Factura enviada' },
       { id: 'f2', concept: 'Asesoría trimestral (Ramírez)', kind: 'cobro', amountCents: 1800000, dueDate: addDays(localDate(), 24), clientId: 'c2', category: 'Servicios', status: 'Pendiente', note: '' },

@@ -11,6 +11,7 @@ export type Doc = {
   id: Id; clientId: Id; category: string; period: string; name: string; mime: string; size: number;
   fileKey: string; status: DocStatus; createdAt: string; uploadedBy: 'despacho' | 'cliente';
   sha256?: string; // huella calculada por el servidor al recibir el archivo
+  employeeId?: Id; payrollId?: Id; uuid?: string; // recibos de nómina: a quién pertenecen y UUID del CFDI
 };
 
 export type Task = { id: Id; title: string; clientId: Id | ''; projectId: Id | ''; due: string; done: boolean };
@@ -30,11 +31,31 @@ export type PayrollCalc = {
   isrCents: number; imssCents: number; subsidyAppliedCents: number; otherCents: number; tablesYear: number;
   detail?: PayrollDetail; // desglose paso a paso (nóminas calculadas antes de esta versión no lo tienen)
 };
+/** Línea de un recibo timbrado, tal como la emitió el sistema de nómina (p. ej. CONTPAQi). */
+export type CfdiLine = { kind: 'percepcion' | 'deduccion' | 'otropago'; tipo: string; clave: string; concepto: string; gravadoCents: number; exentoCents: number };
+export type PayrollCfdi = {
+  uuid: string; status: 'Timbrado' | 'Cancelado'; xmlDocId: Id; pdfDocId?: Id;
+  fechaPago: string; fechaInicial: string; fechaFinal: string; diasPagados: number;
+  emisorRfc: string; receptorRfc: string; totalCents: number; lines: CfdiLine[]; checkedAt: string; notes: string[];
+};
 export type Payroll = {
   id: Id; employee: string; clientId: Id | ''; period: string; perceptionsCents: number; deductionsCents: number;
+  employeeId?: Id;
+  source?: 'calculo' | 'cfdi';   // calculado en la app, o tomado de un recibo timbrado
   /** Subsidio para el empleo que excede el ISR y se entrega al trabajador (solo cálculo automático). */
   subsidyPaidCents?: number;
   calc?: PayrollCalc; // presente cuando se calculó con las tablas
+  cfdi?: PayrollCfdi; // presente cuando hay un recibo timbrado asociado
+};
+export type Employee = {
+  id: Id; clientId: Id | ''; numEmpleado: string; name: string; rfc: string; curp: string; nss: string; birthDate: string;
+  email: string; phone: string; address: string; cp: string;
+  hireDate: string; endDate: string; status: 'Activo' | 'Baja'; puesto: string; departamento: string;
+  contractType: string; jornada: string; periodicidad: string; regimen: string; entidad: string;
+  dailySalaryCents: number; sbcDailyCents: number; // salario diario y SBC/SDI vigente
+  bank: string; clabe: string;
+  infonavitType: '' | 'porcentaje' | 'cuota fija' | 'veces SM'; infonavitValue: string; infonavitCredit: string;
+  notes: string;
 };
 export type ObligationStatus = 'Pendiente' | 'Presentada' | 'Pagada';
 export type Obligation = { id: Id; name: string; clientId: Id | ''; dueDate: string; amountCents: number; status: ObligationStatus };
@@ -46,9 +67,9 @@ export type Proposal = { plan: string; priceMXN: number; createdAt: string };
 
 export type Data = {
   clients: Client[]; docs: Doc[]; tasks: Task[]; projects: Project[]; movements: Movement[];
-  budgets: Budget[]; payrolls: Payroll[]; obligations: Obligation[]; forecasts: Forecast[]; invites: Invite[]; proposals: Proposal[];
+  budgets: Budget[]; payrolls: Payroll[]; employees: Employee[]; obligations: Obligation[]; forecasts: Forecast[]; invites: Invite[]; proposals: Proposal[];
 };
 export const emptyData = (): Data => ({
-  clients: [], docs: [], tasks: [], projects: [], movements: [], budgets: [], payrolls: [], obligations: [], forecasts: [], invites: [], proposals: [],
+  clients: [], docs: [], tasks: [], projects: [], movements: [], budgets: [], payrolls: [], employees: [], obligations: [], forecasts: [], invites: [], proposals: [],
 });
 export type Mode = 'demo' | 'local' | 'cloud';
