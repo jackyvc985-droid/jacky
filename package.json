@@ -9,7 +9,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "build:web": "expo export --platform web",
-    "test": "node --experimental-strip-types --test tests/*.test.ts"
+    "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test tests/*.test.ts",
+    "server": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/index.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.16",
@@ -19,6 +20,7 @@
     "expo-file-system": "~57.0.7",
     "expo-sharing": "~57.0.23",
     "expo-status-bar": "~57.0.1",
+    "fast-xml-parser": "^5.11.2",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-native": "^0.86.3",
