@@ -5,7 +5,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { parseModules, sanitizeModules } from '../src/domain/permissions.ts';
 import { validateUpload, safeFileName } from '../src/domain/uploads.ts';
-import { INVITABLE_ROLES, authorizeWrite, canWrite, canWriteDoc, viewFor } from '../src/domain/roles.ts';
+import { INVITABLE_ROLES, STAFF_ROLES, authorizeWrite, canWrite, canWriteDoc, parseScope, viewFor } from '../src/domain/roles.ts';
 import type { Member, RoleId } from '../src/domain/roles.ts';
 import { emptyData } from '../src/domain/types.ts';
 import type { Data } from '../src/domain/types.ts';
@@ -16,6 +16,27 @@ const PORT = Number(process.env.PORT ?? 8787);
 const ORIGINS = (process.env.ALLOWED_ORIGINS ?? '*').split(',').map((s: string) => s.trim());
 const RATE_LIMIT = Number(process.env.RATE_LIMIT ?? 10); // intentos por 15 min (registro, inicio de sesión, borrado)
 const MAX_JSON = 20 * 1024 * 1024, MAX_FILE = 25 * 1024 * 1024, SESSION_DAYS = 30, ORPHAN_GRACE_MS = 3600_000;
+
+// Cifrado en reposo (AES-256-GCM) de los datos del espacio y de los archivos. Clave: DATA_KEY (32 bytes en base64).
+// Quien opere el servidor guarda la clave aparte de los respaldos: sin ella, lo cifrado no se puede recuperar.
+const DATA_KEY = process.env.DATA_KEY ? Buffer.from(process.env.DATA_KEY, 'base64') : null;
+if (DATA_KEY && DATA_KEY.length !== 32) throw new Error('DATA_KEY debe ser una clave de 32 bytes en base64');
+const MAGIC = Buffer.from('CVENC1');
+function encBuf(b: Buffer): Buffer {
+  if (!DATA_KEY) return b;
+  const iv = crypto.randomBytes(12), c = crypto.createCipheriv('aes-256-gcm', DATA_KEY, iv);
+  const ct = Buffer.concat([c.update(b), c.final()]);
+  return Buffer.concat([MAGIC, iv, c.getAuthTag(), ct]);
+}
+function decBuf(b: Buffer): Buffer {
+  if (!b.subarray(0, MAGIC.length).equals(MAGIC)) return b; // dato anterior sin cifrar: se leerá y se cifrará en su siguiente escritura
+  if (!DATA_KEY) throw new Error('Los datos están cifrados y falta DATA_KEY');
+  const d = crypto.createDecipheriv('aes-256-gcm', DATA_KEY, b.subarray(6, 18));
+  d.setAuthTag(b.subarray(18, 34));
+  return Buffer.concat([d.update(b.subarray(34)), d.final()]);
+}
+const packData = (json: string) => (DATA_KEY ? 'enc1:' + encBuf(Buffer.from(json, 'utf8')).toString('base64') : json);
+const unpackData = (s: string) => (s.startsWith('enc1:') ? decBuf(Buffer.from(s.slice(5), 'base64')).toString('utf8') : s);
 
 fs.mkdirSync(path.join(DATA_DIR, 'files'), { recursive: true });
 const db = new DatabaseSync(path.join(DATA_DIR, 'canville.db'));
@@ -39,6 +60,8 @@ for (const sql of [
   'ALTER TABLE members ADD COLUMN employee_id TEXT',
   'ALTER TABLE invites ADD COLUMN role TEXT',
   'ALTER TABLE invites ADD COLUMN employee_id TEXT',
+  'ALTER TABLE members ADD COLUMN client_scope TEXT',
+  'ALTER TABLE invites ADD COLUMN client_scope TEXT',
 ]) { try { db.exec(sql); } catch { /* la columna ya existe */ } }
 
 const id = () => crypto.randomBytes(9).toString('base64url');
@@ -96,13 +119,22 @@ const memberships = (userId: string) =>
   db.prepare('SELECT m.workspace_id AS workspaceId, w.name, m.role, m.client_id AS clientId FROM members m JOIN workspaces w ON w.id=m.workspace_id WHERE m.user_id=?').all(userId);
 
 function member(a: Auth, ws: string): Member {
-  const m = db.prepare('SELECT role, client_id AS clientId, modules, employee_id AS employeeId FROM members WHERE workspace_id=? AND user_id=?').get(ws, a.userId) as { role: string; clientId: string; modules: string | null; employeeId: string | null } | undefined;
+  const m = db.prepare('SELECT role, client_id AS clientId, modules, employee_id AS employeeId, client_scope AS scope FROM members WHERE workspace_id=? AND user_id=?').get(ws, a.userId) as { role: string; clientId: string; modules: string | null; employeeId: string | null; scope: string | null } | undefined;
   if (!m) throw new HttpError(404, 'Espacio no encontrado'); // no revela si existe
-  return { role: m.role as RoleId, clientId: m.clientId ?? '', modules: parseModules(m.modules), employeeId: m.employeeId ?? '' };
+  return { role: m.role as RoleId, clientId: m.clientId ?? '', modules: parseModules(m.modules), employeeId: m.employeeId ?? '', scope: parseScope(m.scope) };
 }
 const owner = (a: Auth, ws: string) => { const m = member(a, ws); if (m.role !== 'propietario') throw new HttpError(403, 'Solo el propietario'); return m; };
-const wsRow = (ws: string) => db.prepare('SELECT rev, data FROM workspaces WHERE id=?').get(ws) as { rev: number; data: string };
+const wsRow = (ws: string) => { const r = db.prepare('SELECT rev, data FROM workspaces WHERE id=?').get(ws) as { rev: number; data: string }; return { rev: r.rev, data: unpackData(r.data) }; };
 const parseData = (s: string): Data => ({ ...emptyData(), ...JSON.parse(s) });
+
+/** 'all' | ['id',…] válido (solo clientes existentes); null si no se indicó. */
+function normalizeScope(input: unknown, validIds: string[]): 'all' | string[] | null {
+  if (input === 'all') return 'all';
+  if (!Array.isArray(input) || input.length === 0) return null;
+  const ids = [...new Set(input.map(String))];
+  if (ids.some(i => !validIds.includes(i))) throw new HttpError(400, 'Cliente inexistente en la asignación');
+  return ids;
+}
 
 const KEY = /^[A-Za-z0-9_-]{6,40}$/;
 const filePath = (ws: string, key: string) => {
@@ -122,16 +154,25 @@ function sweepOrphans(ws: string, data: Data) {
   }
 }
 
+// Lectura de nómina por quien no es propietario: se registra una vez cada 10 minutos por persona para no saturar la bitácora.
+const lastPayrollRead = new Map<string, number>();
+function auditPayrollRead(ws: string, userId: string, role: string, n: number) {
+  const k = `${ws}:${userId}`, t = Date.now();
+  if ((lastPayrollRead.get(k) ?? 0) > t - 10 * 60_000) return;
+  lastPayrollRead.set(k, t);
+  audit(ws, userId, 'payroll.read', `rol:${role} nóminas:${n}`);
+}
+
 type Handler = (req: http.IncomingMessage, res: http.ServerResponse, p: string[], url: URL) => Promise<unknown>;
 const send = (res: http.ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}) => {
   const isBuf = Buffer.isBuffer(body);
-  res.writeHead(status, { 'content-type': isBuf ? 'application/octet-stream' : 'application/json', ...headers });
+  res.writeHead(status, { 'content-type': isBuf ? 'application/octet-stream' : 'application/json', 'cache-control': 'private, no-store', ...headers });
   res.end(isBuf ? body : JSON.stringify(body));
 };
 
 const routes: Handler = async (req, res, p, url) => {
   const method = req.method ?? 'GET';
-  if (method === 'GET' && p[0] === 'health') return { ok: true };
+  if (method === 'GET' && p[0] === 'health') return { ok: true, encrypted: !!DATA_KEY };
 
   if (p[0] === 'auth') {
     const ip = req.socket.remoteAddress ?? '';
@@ -150,12 +191,12 @@ const routes: Handler = async (req, res, p, url) => {
       const userId = id(); const { salt, hash } = hashPassword(pw);
       db.prepare('INSERT INTO users VALUES(?,?,?,?,?)').run(userId, email, salt, hash, now());
       if (invite) {
-        db.prepare('INSERT INTO members(workspace_id,user_id,role,client_id,modules,employee_id) VALUES(?,?,?,?,?,?)').run(invite.workspace_id, userId, invite.role ?? 'cliente', invite.client_id, invite.modules ?? JSON.stringify(sanitizeModules(null)), invite.employee_id ?? '');
+        db.prepare('INSERT INTO members(workspace_id,user_id,role,client_id,modules,employee_id,client_scope) VALUES(?,?,?,?,?,?,?)').run(invite.workspace_id, userId, invite.role ?? 'cliente', invite.client_id, invite.modules ?? JSON.stringify(sanitizeModules(null)), invite.employee_id ?? '', invite.client_scope ?? null);
         db.prepare('UPDATE invites SET used_at=? WHERE id=?').run(now(), invite.id);
         audit(invite.workspace_id, userId, 'invite.accepted', email);
       } else {
         const wsId = id();
-        db.prepare('INSERT INTO workspaces VALUES(?,?,?,?,?)').run(wsId, String(b.workspaceName ?? 'Mi despacho').slice(0, 80), 1, JSON.stringify(emptyData()), now());
+        db.prepare('INSERT INTO workspaces VALUES(?,?,?,?,?)').run(wsId, String(b.workspaceName ?? 'Mi despacho').slice(0, 80), 1, packData(JSON.stringify(emptyData())), now());
         db.prepare('INSERT INTO members(workspace_id,user_id,role,client_id) VALUES(?,?,?,?)').run(wsId, userId, 'propietario', '');
         audit(wsId, userId, 'workspace.created', email);
       }
@@ -182,7 +223,7 @@ const routes: Handler = async (req, res, p, url) => {
       const a = auth(req); const b = await readJson(req);
       const inv = db.prepare('SELECT * FROM invites WHERE email=? AND code_hash=? AND used_at IS NULL').get(a.email, sha(String(b.inviteCode ?? '').trim().toUpperCase())) as any;
       if (!inv) throw new HttpError(400, 'Código de invitación inválido para esta cuenta');
-      db.prepare('INSERT OR REPLACE INTO members(workspace_id,user_id,role,client_id,modules,employee_id) VALUES(?,?,?,?,?,?)').run(inv.workspace_id, a.userId, inv.role ?? 'cliente', inv.client_id, inv.modules ?? JSON.stringify(sanitizeModules(null)), inv.employee_id ?? '');
+      db.prepare('INSERT OR REPLACE INTO members(workspace_id,user_id,role,client_id,modules,employee_id,client_scope) VALUES(?,?,?,?,?,?,?)').run(inv.workspace_id, a.userId, inv.role ?? 'cliente', inv.client_id, inv.modules ?? JSON.stringify(sanitizeModules(null)), inv.employee_id ?? '', inv.client_scope ?? null);
       db.prepare('UPDATE invites SET used_at=? WHERE id=?').run(now(), inv.id);
       audit(inv.workspace_id, a.userId, 'invite.accepted', a.email);
       return { memberships: memberships(a.userId) };
@@ -230,7 +271,9 @@ const routes: Handler = async (req, res, p, url) => {
     if (p[2] === 'data') {
       if (method === 'GET') {
         const r = wsRow(ws); const d = parseData(r.data);
-        return { rev: r.rev, role: m.role, clientId: m.clientId, employeeId: m.employeeId, modules: m.role === 'cliente' ? m.modules : null, data: viewFor(d, m) };
+        const view = viewFor(d, m);
+        if (m.role !== 'propietario' && (view.payrolls.length || view.employees.length)) auditPayrollRead(ws, a.userId, m.role, view.payrolls.length);
+        return { rev: r.rev, role: m.role, clientId: m.clientId, employeeId: m.employeeId, modules: m.role === 'cliente' ? m.modules : null, data: view };
       }
       if (method === 'PUT') {
         const b = await readJson(req);
@@ -239,7 +282,7 @@ const routes: Handler = async (req, res, p, url) => {
         if (!res.ok) throw new HttpError(403, res.error);
         const next = parseData(JSON.stringify(res.merged));
         // Actualización condicional: solo escribe si nadie cambió la revisión (revisión optimista).
-        const r = db.prepare('UPDATE workspaces SET data=?, rev=rev+1 WHERE id=? AND rev=?').run(JSON.stringify(next), ws, Number(b.baseRev));
+        const r = db.prepare('UPDATE workspaces SET data=?, rev=rev+1 WHERE id=? AND rev=?').run(packData(JSON.stringify(next)), ws, Number(b.baseRev));
         if (r.changes === 0) throw new HttpError(409, 'Hay cambios más recientes. Recarga antes de guardar.', { rev: wsRow(ws).rev });
         audit(ws, a.userId, 'data.saved', `rev ${Number(b.baseRev) + 1} rol:${m.role}`);
         sweepOrphans(ws, next);
@@ -256,7 +299,7 @@ const routes: Handler = async (req, res, p, url) => {
         const chk = validateUpload(name, buf);
         if (!chk.ok) throw new HttpError(415, chk.error);
         const sha = crypto.createHash('sha256').update(buf).digest('hex');
-        fs.mkdirSync(path.dirname(fp), { recursive: true }); fs.writeFileSync(fp, buf);
+        fs.mkdirSync(path.dirname(fp), { recursive: true }); fs.writeFileSync(fp, encBuf(buf));
         db.prepare('INSERT OR REPLACE INTO files(workspace_id,key,name,mime,size,created_at,sha256,mime_detected) VALUES(?,?,?,?,?,?,?,?)').run(ws, key, name, chk.mime, buf.length, Date.now(), sha, chk.mime);
         audit(ws, a.userId, 'file.uploaded', key);
         return { ok: true, sha256: sha, mime: chk.mime };
@@ -268,7 +311,7 @@ const routes: Handler = async (req, res, p, url) => {
         if (!doc) throw new HttpError(404, 'Archivo no encontrado');
         if (!fs.existsSync(fp)) throw new HttpError(404, 'El archivo no existe en el servidor');
         audit(ws, a.userId, 'file.downloaded', key);
-        return { __raw: fs.readFileSync(fp), name: doc.name, mime: doc.mime };
+        return { __raw: decBuf(fs.readFileSync(fp)), name: doc.name, mime: doc.mime };
       }
       if (method === 'DELETE') { // eliminación física
         const doc = parseData(wsRow(ws).data).docs.find(x => x.fileKey === key);
@@ -297,17 +340,37 @@ const routes: Handler = async (req, res, p, url) => {
         const cur = parseData(wsRow(ws).data);
         if (role === 'cliente' && !cur.clients.some(c => c.id === clientId)) throw new HttpError(400, 'Cliente inexistente');
         if (role === 'empleado' && !cur.employees.some(e => e.id === employeeId)) throw new HttpError(400, 'Trabajador inexistente');
+        let scopeJson: string | null = null;
+        if ((STAFF_ROLES as readonly string[]).includes(role)) { // el equipo debe tener clientes asignados de forma expresa
+          const sc = normalizeScope(b.clientScope, cur.clients.map(c => c.id));
+          if (sc === null) throw new HttpError(400, 'Indica a qué clientes tendrá acceso («todos» o una lista). Sin asignación no ve ninguno.');
+          scopeJson = JSON.stringify(sc);
+        }
         const code = crypto.randomBytes(5).toString('hex').toUpperCase(); // se comparte manualmente
         const modules = sanitizeModules(b.modules); // si no se indica, el mínimo
         db.prepare('DELETE FROM invites WHERE workspace_id=? AND email=? AND used_at IS NULL').run(ws, email);
-        db.prepare('INSERT INTO invites(id,workspace_id,email,client_id,code_hash,created_at,used_at,modules,role,employee_id) VALUES(?,?,?,?,?,?,NULL,?,?,?)').run(id(), ws, email, role === 'cliente' ? clientId : '', sha(code), now(), JSON.stringify(modules), role, role === 'empleado' ? employeeId : '');
+        db.prepare('INSERT INTO invites(id,workspace_id,email,client_id,code_hash,created_at,used_at,modules,role,employee_id,client_scope) VALUES(?,?,?,?,?,?,NULL,?,?,?,?)').run(id(), ws, email, role === 'cliente' ? clientId : '', sha(code), now(), JSON.stringify(modules), role, role === 'empleado' ? employeeId : '', scopeJson);
         audit(ws, a.userId, 'invite.created', `${email} rol:${role}${role === 'cliente' ? ` módulos:${modules.join(',')}` : ''}`);
         return { code, email, modules, role };
       }
       if (method === 'GET') {
-        const pend = (db.prepare("SELECT email, client_id AS clientId, created_at AS createdAt, modules, COALESCE(role,'cliente') AS role, COALESCE(employee_id,'') AS employeeId FROM invites WHERE workspace_id=? AND used_at IS NULL").all(ws) as any[]).map(r => ({ ...r, modules: parseModules(r.modules) }));
-        const mem = (db.prepare("SELECT u.email, m.client_id AS clientId, m.modules, m.role AS role, COALESCE(m.employee_id,'') AS employeeId FROM members m JOIN users u ON u.id=m.user_id WHERE m.workspace_id=? AND m.role<>'propietario'").all(ws) as any[]).map(r => ({ ...r, modules: parseModules(r.modules) }));
+        const pend = (db.prepare("SELECT email, client_id AS clientId, created_at AS createdAt, modules, COALESCE(role,'cliente') AS role, COALESCE(employee_id,'') AS employeeId, client_scope AS scope FROM invites WHERE workspace_id=? AND used_at IS NULL").all(ws) as any[]).map(r => ({ ...r, modules: parseModules(r.modules), scope: parseScope(r.scope) }));
+        const mem = (db.prepare("SELECT u.email, m.client_id AS clientId, m.modules, m.role AS role, COALESCE(m.employee_id,'') AS employeeId, m.client_scope AS scope FROM members m JOIN users u ON u.id=m.user_id WHERE m.workspace_id=? AND m.role<>'propietario'").all(ws) as any[]).map(r => ({ ...r, modules: parseModules(r.modules), scope: parseScope(r.scope) }));
         return { pending: pend, members: mem };
+      }
+      if (method === 'PUT' && p[3] && p[4] === 'scope') { // el propietario cambia qué clientes atiende una persona del equipo
+        const email = decodeURIComponent(p[3]).toLowerCase();
+        const b = await readJson(req);
+        const sc = normalizeScope(b.clientScope, parseData(wsRow(ws).data).clients.map(c => c.id));
+        if (sc === null) throw new HttpError(400, 'Indica «todos» o una lista de clientes.');
+        const json = JSON.stringify(sc);
+        const u = db.prepare('SELECT id FROM users WHERE email=?').get(email) as any;
+        const staffIn = STAFF_ROLES.map(r => `'${r}'`).join(',');
+        const r1 = u ? db.prepare(`UPDATE members SET client_scope=? WHERE workspace_id=? AND user_id=? AND role IN (${staffIn})`).run(json, ws, u.id) : { changes: 0 };
+        const r2 = db.prepare(`UPDATE invites SET client_scope=? WHERE workspace_id=? AND email=? AND used_at IS NULL AND role IN (${staffIn})`).run(json, ws, email);
+        if (!r1.changes && !r2.changes) throw new HttpError(404, 'No hay una persona del equipo con ese correo');
+        audit(ws, a.userId, 'access.scope', `${email} clientes:${sc === 'all' ? 'todos' : sc.length}`);
+        return { ok: true, scope: sc };
       }
       if (method === 'PUT' && p[3] && p[4] === 'modules') { // el propietario cambia lo que ve un cliente (efecto inmediato)
         const email = decodeURIComponent(p[3]).toLowerCase();

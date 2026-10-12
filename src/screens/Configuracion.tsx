@@ -180,31 +180,39 @@ export default function Configuracion() {
   );
 }
 
-/** Equipo del despacho: roles con permisos distintos (la matriz completa está en el servidor). */
+/** Equipo del despacho: roles con permisos distintos y clientes asignados (la matriz completa está en el servidor). */
 function TeamAccess() {
-  const { session } = useStore();
-  type Entry = { email: string; role: RoleId };
+  const { session, data } = useStore();
+  type Entry = { email: string; role: RoleId; scope: 'all' | string[] };
   const [list, setList] = useState<{ pending: Entry[]; members: Entry[] } | null>(null);
   const [inviting, setInviting] = useState(false);
+  const [editing, setEditing] = useState<Entry | null>(null);
   const [code, setCode] = useState<{ email: string; code: string } | null>(null);
   const s = session!;
   const load = () => api(s.apiUrl, s.token, 'GET', `/ws/${s.workspaceId}/invites`).then(setList).catch(e => notify(e.message));
   useEffect(() => { load(); }, []);
   const isStaff = (e: Entry) => (STAFF_ROLES as readonly string[]).includes(e.role);
   const revoke = (email: string) => api(s.apiUrl, s.token, 'DELETE', `/ws/${s.workspaceId}/invites/${encodeURIComponent(email)}`).then(load).catch(e => notify(e.message));
+  const scopeOptions = [{ value: '__all__', label: 'Todos los clientes' }, ...data.clients.map(c => ({ value: c.id, label: c.name }))];
+  const toScope = (v: string): 'all' | string[] => { const ids = v.split(',').filter(Boolean); if (ids.includes('__all__')) return 'all'; if (ids.length === 0) throw new Error('Elige a qué clientes tendrá acceso (o «Todos los clientes»). Sin asignación no vería ninguno.'); return ids; };
+  const scopeLabel = (sc: Entry['scope']) => (sc === 'all' ? 'todos los clientes' : sc.length === 0 ? 'ningún cliente' : sc.map(id => data.clients.find(c => c.id === id)?.name ?? '(eliminado)').join(', '));
+  const line = (m: Entry) => <View style={{ flex: 1, minWidth: 160 }}><T bold>{m.email}</T><Muted>{ROLE_LABELS[m.role]} · ve: {scopeLabel(m.scope)}</Muted></View>;
   return (
     <Card>
       <H2>Equipo y accesos</H2>
-      <Banner tone="info">Cada persona del despacho entra con su propio correo y ve solo lo que su rol permite; el servidor lo hace cumplir. Las invitaciones usan un código de un solo uso que compartes tú. Los clientes se invitan desde su ficha y los trabajadores desde la suya.</Banner>
+      <Banner tone="info">Cada persona del despacho entra con su propio correo y ve solo lo que su rol permite y solo de los clientes que le asignes; el servidor lo hace cumplir. Las invitaciones usan un código de un solo uso que compartes tú. Los clientes se invitan desde su ficha y los trabajadores desde la suya.</Banner>
       {code && <Banner tone="warn">Código para {code.email}: {code.code} — cópialo ahora, no se vuelve a mostrar.</Banner>}
-      {list?.members.filter(isStaff).map(m => <Row key={m.email}><View style={{ flex: 1 }}><T bold>{m.email}</T><Muted>{ROLE_LABELS[m.role]}</Muted></View><Badge tone="ok" label="Con acceso" /><Btn small kind="danger" label="Revocar" onPress={() => confirmAction(`¿Revocar acceso de ${m.email}?`, () => revoke(m.email))} /></Row>)}
-      {list?.pending.filter(isStaff).map(m => <Row key={m.email}><View style={{ flex: 1 }}><T bold>{m.email}</T><Muted>{ROLE_LABELS[m.role]}</Muted></View><Badge tone="warn" label="Invitación pendiente" /><Btn small kind="danger" label="Cancelar" onPress={() => revoke(m.email)} /></Row>)}
+      {list?.members.filter(isStaff).map(m => <Row key={m.email}>{line(m)}<Badge tone="ok" label="Con acceso" /><Btn small kind="ghost" label="Cambiar clientes" onPress={() => setEditing(m)} /><Btn small kind="danger" label="Revocar" onPress={() => confirmAction(`¿Revocar acceso de ${m.email}?`, () => revoke(m.email))} /></Row>)}
+      {list?.pending.filter(isStaff).map(m => <Row key={m.email}>{line(m)}<Badge tone="warn" label="Invitación pendiente" /><Btn small kind="ghost" label="Cambiar clientes" onPress={() => setEditing(m)} /><Btn small kind="danger" label="Cancelar" onPress={() => revoke(m.email)} /></Row>)}
       {list && !list.members.some(isStaff) && !list.pending.some(isStaff) && <Muted>Aún no hay personas del equipo con acceso.</Muted>}
       <Btn small label="Invitar a una persona del equipo" onPress={() => setInviting(true)} />
-      {inviting && <FormModal title="Invitar al equipo" initial={{ role: 'contador' }} onClose={() => setInviting(false)}
-        fields={[{ key: 'email', label: 'Correo', required: true }, { key: 'role', label: 'Rol', type: 'select', options: STAFF_ROLES.map(r => ({ value: r, label: ROLE_LABELS[r] })) }]}
+      {inviting && <FormModal title="Invitar al equipo" initial={{ role: 'contador', scope: '' }} onClose={() => setInviting(false)}
+        fields={[{ key: 'email', label: 'Correo', required: true }, { key: 'role', label: 'Rol', type: 'select', options: STAFF_ROLES.map(r => ({ value: r, label: ROLE_LABELS[r] })) }, { key: 'scope', label: 'Clientes que atenderá', type: 'multi', options: scopeOptions, hint: 'Sin asignación no ve ningún cliente. Lo interno del despacho (sin cliente) solo lo ve quien atiende «Todos».' }]}
         extra={<View style={{ marginTop: 10, gap: 4 }}>{STAFF_ROLES.map(r => <Muted key={r}><T bold style={{ fontSize: 13 }}>{ROLE_LABELS[r]}: </T>{ROLE_SUMMARY[r]}</Muted>)}</View>}
-        onSubmit={async v => { const r = await api<{ code: string; email: string }>(s.apiUrl, s.token, 'POST', `/ws/${s.workspaceId}/invites`, { email: v.email.trim(), role: v.role }); setCode(r); setInviting(false); load(); }} />}
+        onSubmit={async v => { const r = await api<{ code: string; email: string }>(s.apiUrl, s.token, 'POST', `/ws/${s.workspaceId}/invites`, { email: v.email.trim(), role: v.role, clientScope: toScope(v.scope) }); setCode(r); setInviting(false); load(); }} />}
+      {editing && <FormModal title={`Clientes de ${editing.email}`} initial={{ scope: editing.scope === 'all' ? '__all__' : editing.scope.join(',') }} onClose={() => setEditing(null)}
+        fields={[{ key: 'scope', label: 'Clientes que atiende', type: 'multi', options: scopeOptions }]}
+        onSubmit={async v => { await api(s.apiUrl, s.token, 'PUT', `/ws/${s.workspaceId}/invites/${encodeURIComponent(editing.email)}/scope`, { clientScope: toScope(v.scope) }); setEditing(null); load(); }} />}
     </Card>
   );
 }

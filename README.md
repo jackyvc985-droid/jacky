@@ -38,6 +38,9 @@ La app abre en **demostración** (identificada como tal; los datos no se guardan
 - **Nube**: cuentas, espacios, portal de clientes con invitación por código, revisión optimista (nunca sobrescribe cambios ajenos sin avisar), consulta de cambios cada 15 s, eliminación física de archivos, bitácora y respaldos.
 - **Respaldo**: descarga/restauración de un archivo con datos y documentos; solicitud de protección de almacenamiento al navegador.
 
+## Nómina privada y PAC
+Ver `docs/nomina-privada-y-pac.md`: qué se hizo (cifrado en reposo, alcance por cliente, auditoría de lectura, sin caché), qué no y por qué (no se integró un PAC; hoy se timbra en CONTPAQi).
+
 ## Diagnóstico frente al kit
 Ver `docs/diagnostico-kit.md`: qué existe, qué se comprobó, qué riesgo tiene y qué decisiones faltan.
 
@@ -45,7 +48,7 @@ Ver `docs/diagnostico-kit.md`: qué existe, qué se comprobó, qué riesgo tiene
 Ver `docs/publicacion-y-derechos.md` (estado técnico verificado, decisiones pendientes de Canville, inventario de datos y expediente de derechos) y `docs/THIRD_PARTY_LICENSES.md`.
 
 ## Verificado
-`npm test` (61 pruebas: cálculos, CSV, permisos, respaldo, fiscal y 8 pruebas de integración del servidor), `tsc --noEmit`, `expo export --platform web` y recorridos en Chromium (escritorio y 390 px) del modo local y del flujo completo en la nube: cuenta de despacho, cliente invitado que solo ve su expediente, subida del cliente, conflicto entre dos dispositivos, revocación, respaldo y migración local→nube.
+`npm test` (64 pruebas: cálculos, CSV, permisos, respaldo, fiscal y 8 pruebas de integración del servidor), `tsc --noEmit`, `expo export --platform web` y recorridos en Chromium (escritorio y 390 px) del modo local y del flujo completo en la nube: cuenta de despacho, cliente invitado que solo ve su expediente, subida del cliente, conflicto entre dos dispositivos, revocación, respaldo y migración local→nube.
 
 ## Límites (importante)
 - **Fiscal**: la app **no presenta declaraciones** (eso requiere e.firma o contraseña en el portal del SAT; la app nunca las pide ni las guarda). El validador de CFDI **no verifica sello ni cadena original**. La consulta de estatus ante el SAT está implementada según la especificación pública pero **no se pudo probar contra el SAT real** desde el entorno de desarrollo.

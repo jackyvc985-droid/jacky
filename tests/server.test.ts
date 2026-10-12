@@ -247,7 +247,7 @@ test('roles del equipo y trabajador: cada uno ve y escribe solo lo suyo (servido
   assert.equal((await call('POST', `/ws/${w}/invites`, tok, { email: 'mal@x.co', role: 'empleado', employeeId: 'nadie' })).status, 400);
 
   // --- responsable de nómina
-  const nom = await join('nomina@x.co', { role: 'nomina' });
+  const nom = await join('nomina@x.co', { role: 'nomina', clientScope: 'all' });
   assert.equal(nom.role, 'nomina');
   let v = await call('GET', `/ws/${w}/data`, nom.token);
   assert.equal(v.json.data.payrolls.length, 2);
@@ -271,7 +271,7 @@ test('roles del equipo y trabajador: cada uno ve y escribe solo lo suyo (servido
   assert.equal((await call('GET', `/ws/${w}/backup`, nom.token)).status, 403);
 
   // --- administrador interno: sin nómina
-  const adm = await join('admin@x.co', { role: 'administrador' });
+  const adm = await join('admin@x.co', { role: 'administrador', clientScope: 'all' });
   v = await call('GET', `/ws/${w}/data`, adm.token);
   assert.equal(v.json.data.payrolls.length, 0); assert.equal(v.json.data.employees.length, 0);
   assert.equal(v.json.data.movements.length, 1);
@@ -305,4 +305,58 @@ test('roles del equipo y trabajador: cada uno ve y escribe solo lo suyo (servido
   assert.deepEqual(lst.json.members.map((m: any) => m.role).sort(), ['administrador', 'empleado', 'nomina']);
   assert.equal((await call('DELETE', `/ws/${w}/invites/${encodeURIComponent('ana@x.co')}`, tok)).status, 200);
   assert.equal((await call('GET', `/ws/${w}/data`, emp1.token)).status, 404);
+});
+
+test('alcance por cliente en el equipo: sin asignación se rechaza; asignado a uno no ve ni descarga el otro', async () => {
+  const o = await call('POST', '/auth/register', undefined, { email: 'alcance@x.co', password: 'contraseña-larga-1', workspaceName: 'Alcance' });
+  const tok = o.json.token, w = o.json.memberships[0].workspaceId;
+  const emp = (id: string, clientId: string, name: string) => ({ id, clientId, numEmpleado: id, name, rfc: '', curp: '', nss: '', birthDate: '', email: '', phone: '', address: '', cp: '', hireDate: '', endDate: '', status: 'Activo', puesto: '', departamento: '', contractType: '01', jornada: '01', periodicidad: '05', regimen: '02', entidad: '', dailySalaryCents: 1, sbcDailyCents: 1, bank: '', clabe: '', infonavitType: '', infonavitValue: '', infonavitCredit: '', notes: '' });
+  const g = await call('GET', `/ws/${w}/data`, tok);
+  const d = g.json.data;
+  d.clients = [{ id: 'a1', name: 'Cliente A', rfc: '', email: '', phone: '', status: 'Activo', notes: '' }, { id: 'b2', name: 'Cliente B', rfc: '', email: '', phone: '', status: 'Activo', notes: '' }];
+  d.employees = [emp('ea', 'a1', 'Trabajador De A'), emp('eb', 'b2', 'Trabajador De B')];
+  d.payrolls = [{ id: 'pa', employee: 'Trabajador De A', employeeId: 'ea', clientId: 'a1', period: '2026-10', perceptionsCents: 1, deductionsCents: 0 }, { id: 'pb', employee: 'Trabajador De B', employeeId: 'eb', clientId: 'b2', period: '2026-10', perceptionsCents: 2, deductionsCents: 0 }];
+  d.docs = [
+    { id: 'da', clientId: 'a1', category: 'Nómina', period: '', name: 'a.xml', mime: '', size: 1, fileKey: 'recibo-de-a1', status: 'Completo', createdAt: '', uploadedBy: 'despacho', employeeId: 'ea' },
+    { id: 'db', clientId: 'b2', category: 'Nómina', period: '', name: 'b.xml', mime: '', size: 1, fileKey: 'recibo-de-b2', status: 'Completo', createdAt: '', uploadedBy: 'despacho', employeeId: 'eb' },
+  ];
+  await call('PUT', `/ws/${w}/files/recibo-de-a1`, tok, Buffer.from('<?xml version="1.0"?><a/>'), { 'x-name': 'a.xml' });
+  await call('PUT', `/ws/${w}/files/recibo-de-b2`, tok, Buffer.from('<?xml version="1.0"?><b/>'), { 'x-name': 'b.xml' });
+  assert.equal((await call('PUT', `/ws/${w}/data`, tok, { baseRev: g.json.rev, data: d })).status, 200);
+
+  assert.equal((await call('POST', `/ws/${w}/invites`, tok, { email: 'sin@x.co', role: 'nomina' })).status, 400);                      // sin asignación: no se invita
+  assert.equal((await call('POST', `/ws/${w}/invites`, tok, { email: 'sin@x.co', role: 'nomina', clientScope: ['inexistente'] })).status, 400);
+  const inv = await call('POST', `/ws/${w}/invites`, tok, { email: 'soloa@x.co', role: 'nomina', clientScope: ['a1'] });
+  assert.equal(inv.status, 200);
+  const reg = await call('POST', '/auth/register', undefined, { email: 'soloa@x.co', password: 'contraseña-larga-1', inviteCode: inv.json.code });
+  const t = reg.json.token;
+  let v = await call('GET', `/ws/${w}/data`, t);
+  assert.deepEqual(v.json.data.clients.map((c: any) => c.id), ['a1']);
+  assert.deepEqual(v.json.data.payrolls.map((p: any) => p.id), ['pa']);
+  assert.deepEqual(v.json.data.employees.map((e: any) => e.id), ['ea']);
+  assert.ok(!JSON.stringify(v.json).includes('Trabajador De B'));
+  assert.equal((await call('GET', `/ws/${w}/files/recibo-de-a1`, t)).status, 200);
+  assert.equal((await call('GET', `/ws/${w}/files/recibo-de-b2`, t)).status, 404);                                                     // el recibo del otro cliente
+  // no puede escribir en el cliente B ni colar su nómina
+  assert.equal((await call('PUT', `/ws/${w}/data`, t, { baseRev: v.json.rev, data: { payrolls: [...v.json.data.payrolls, { id: 'nuevo', employee: 'x', clientId: 'b2', period: '2026-10', perceptionsCents: 1, deductionsCents: 0 }] } })).status, 403);
+  assert.equal((await call('PUT', `/ws/${w}/data`, t, { baseRev: v.json.rev, data: { payrolls: [{ id: 'pb', employee: 'hackeo', clientId: 'a1', period: '2026-10', perceptionsCents: 9, deductionsCents: 0 }] } })).status, 403);   // sustituir la que no ve
+  const mine = v.json.data.payrolls.map((p: any) => ({ ...p, perceptionsCents: 777 }));
+  assert.equal((await call('PUT', `/ws/${w}/data`, t, { baseRev: v.json.rev, data: { payrolls: mine } })).status, 200);
+  const full = await call('GET', `/ws/${w}/data`, tok);
+  assert.equal(full.json.data.payrolls.find((p: any) => p.id === 'pb').perceptionsCents, 2);                                           // la del otro, intacta
+  assert.equal(full.json.data.payrolls.find((p: any) => p.id === 'pa').perceptionsCents, 777);
+
+  // el propietario amplía el alcance: efecto inmediato
+  assert.equal((await call('PUT', `/ws/${w}/invites/${encodeURIComponent('soloa@x.co')}/scope`, tok, { clientScope: ['a1', 'b2'] })).status, 200);
+  v = await call('GET', `/ws/${w}/data`, t);
+  assert.deepEqual(v.json.data.payrolls.map((p: any) => p.id).sort(), ['pa', 'pb']);
+  assert.equal((await call('PUT', `/ws/${w}/invites/${encodeURIComponent('soloa@x.co')}/scope`, tok, { clientScope: [] })).status, 400);
+  assert.equal((await call('PUT', `/ws/${w}/invites/${encodeURIComponent('soloa@x.co')}/scope`, t, { clientScope: 'all' })).status, 403);   // solo el propietario
+  const lst = await call('GET', `/ws/${w}/invites`, tok);
+  assert.deepEqual(lst.json.members.find((m: any) => m.email === 'soloa@x.co').scope, ['a1', 'b2']);
+  // la lectura de nómina por parte del equipo queda en la bitácora (sin saturarla: una vez por persona cada 10 min)
+  await call('GET', `/ws/${w}/data`, t);
+  const au = await call('GET', `/ws/${w}/audit`, tok);
+  assert.equal(au.json.filter((x: any) => x.action === 'payroll.read').length, 1);
+  assert.ok(au.json.some((x: any) => x.action === 'access.scope'));
 });

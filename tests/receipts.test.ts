@@ -186,7 +186,7 @@ const world = (): Data => {
   d.budgets = [{ category: 'x', clientId: 'c1', period: '2026-10', limitCents: 1 }];
   return d;
 };
-const mem = (role: Member['role'], extra: Partial<Member> = {}): Member => ({ role, clientId: '', modules: [], employeeId: '', ...extra });
+const mem = (role: Member['role'], extra: Partial<Member> = {}): Member => ({ role, clientId: '', modules: [], employeeId: '', scope: 'all', ...extra });
 
 test('roles: qué ve cada rol', () => {
   const d = world();
@@ -255,4 +255,31 @@ test('escritura parcial: solo lo permitido; lo oculto se conserva intacto', () =
   // presupuestos se identifican por categoría + cliente + periodo
   const adm = mem('administrador'), av = viewFor(d, adm);
   assert.equal(authorizeWrite(d, { budgets: av.budgets.map(b => ({ ...b, limitCents: 9 })) }, adm).ok, true);
+});
+
+test('alcance por cliente: el equipo solo ve y escribe los clientes asignados; sin asignación, ninguno', () => {
+  const d = world();
+  d.clients.push({ id: 'c3', name: 'Tres', rfc: '', email: '', phone: '', status: 'Activo', notes: '' });
+  d.employees.push({ ...blankEmployee('e3', 'c3'), name: 'Carla Ajena' });
+  d.payrolls.push({ id: 'p3', employee: 'Carla Ajena', employeeId: 'e3', clientId: 'c3', period: '2026-10', perceptionsCents: 300, deductionsCents: 30 });
+  d.docs.push({ id: 'dn3', clientId: 'c3', category: 'Nómina', period: '', name: 'carla.xml', mime: '', size: 1, fileKey: 'k9', status: 'Completo', createdAt: '', uploadedBy: 'despacho', employeeId: 'e3' });
+  d.movements.push({ id: 'mg', date: '2026-10-01', type: 'gasto', concept: 'interno', category: 'x', amountCents: 1, clientId: '' });
+  const only1 = mem('nomina', { scope: ['c1'] });
+  const v = viewFor(d, only1);
+  assert.deepEqual(v.clients.map(c => c.id), ['c1']);
+  assert.deepEqual(v.payrolls.map(p => p.id), ['p1', 'p2']);                 // c1, no la de c3
+  assert.deepEqual(v.docs.map(x => x.id), ['dn1', 'dn2']);
+  assert.ok(!JSON.stringify(v).includes('Carla Ajena'));
+  assert.equal(viewFor(d, mem('nomina', { scope: 'all' })).payrolls.length, 3);
+  assert.equal(viewFor(d, mem('nomina', { scope: [] })).payrolls.length, 0);   // sin asignación: nada
+  assert.equal(viewFor(d, mem('nomina', { scope: [] })).clients.length, 0);
+  assert.equal(viewFor(d, mem('administrador', { scope: ['c1'] })).movements.some(m => m.id === 'mg'), false);   // lo interno (sin cliente) solo con «todos»
+  assert.equal(viewFor(d, mem('administrador', { scope: 'all' })).movements.some(m => m.id === 'mg'), true);
+  // escribir: solo dentro de su alcance
+  const own = v.payrolls.map(p => (p.id === 'p1' ? { ...p, perceptionsCents: 5 } : p));
+  assert.equal(authorizeWrite(d, { payrolls: own }, only1).ok, true);
+  assert.equal(authorizeWrite(d, { payrolls: [...v.payrolls, { ...d.payrolls[0], id: 'nuevo', clientId: 'c3' }] }, only1).ok, false);   // crear en un cliente ajeno
+  assert.equal(authorizeWrite(d, { payrolls: [...v.payrolls, { ...d.payrolls[2] }] }, only1).ok, false);                                 // colar una nómina ajena que no ve
+  const r = authorizeWrite(d, { payrolls: own }, only1);
+  if (r.ok) assert.equal(r.merged.payrolls.length, 3);                       // la de c3 sigue intacta
 });

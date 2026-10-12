@@ -57,9 +57,17 @@ export const STAFF_RULES: Record<StaffRole, Rules> = {
   },
 };
 
-export type Member = { role: RoleId; clientId: string; modules: readonly ClientModule[]; employeeId: string };
+/** Clientes que un miembro del equipo puede atender: todos (decisión expresa) o una lista. Sin asignación = ninguno. */
+export type ClientScope = 'all' | readonly string[];
+export type Member = { role: RoleId; clientId: string; modules: readonly ClientModule[]; employeeId: string; scope?: ClientScope };
 const COLLS: Coll[] = ['clients', 'docs', 'tasks', 'projects', 'movements', 'budgets', 'payrolls', 'employees', 'obligations', 'forecasts'];
 const pass = (r: Rule | undefined, item: unknown) => r === true || (typeof r === 'function' && r(item));
+/** Alcance por cliente: los elementos sin cliente (internos del despacho) solo los ve quien atiende «todos». */
+const inScope = (scope: ClientScope | undefined, c: Coll, item: any) => {
+  if (scope === 'all') return true;
+  const list = scope ?? [];
+  return c === 'clients' ? list.includes(item.id) : !!item.clientId && list.includes(item.clientId);
+};
 
 export const budgetKey = (b: { category: string; clientId: string; period: string }) => `${b.category}|${b.clientId}|${b.period}`;
 const keyOf = (c: Coll, item: any): string => (c === 'budgets' ? budgetKey(item) : String(item.id));
@@ -87,7 +95,7 @@ export function viewFor(data: Data, m: Member): Data {
   const out: Data = { ...data, invites: [], proposals: [] };
   for (const c of COLLS) {
     const r = rules.read[c];
-    (out as any)[c] = r ? (data as any)[c].filter((i: unknown) => pass(r, i)) : [];
+    (out as any)[c] = r ? (data as any)[c].filter((i: unknown) => pass(r, i) && inScope(m.scope, c, i)) : [];
   }
   if (!rules.notes) out.clients = out.clients.map(c => ({ ...c, notes: '' }));
   return out;
@@ -135,10 +143,10 @@ export function authorizeWrite(stored: Data, submitted: Partial<Data>, m: Member
       const prev = visKeys.get(k);
       if (prev && deepEqual(prev, i)) continue;             // sin cambios
       if (!prev && (stored as any)[c].some((s: any) => keyOf(c, s) === k)) return { ok: false, error: `No puedes sustituir un elemento de ${c} que no ves.` };
-      if (!pass(wr, i)) return { ok: false, error: `Tu rol no puede escribir ese elemento de ${c}.` };
-      if (prev && !pass(wr, prev)) return { ok: false, error: `Tu rol no puede modificar ese elemento de ${c}.` };
+      if (!pass(wr, i) || !inScope(m.scope, c, i)) return { ok: false, error: `Tu rol no puede escribir ese elemento de ${c}.` };
+      if (prev && (!pass(wr, prev) || !inScope(m.scope, c, prev))) return { ok: false, error: `Tu rol no puede modificar ese elemento de ${c}.` };
     }
-    for (const [k, prev] of visKeys) if (!subKeys.has(k) && !pass(wr, prev)) return { ok: false, error: `Tu rol no puede eliminar ese elemento de ${c}.` };
+    for (const [k, prev] of visKeys) if (!subKeys.has(k) && (!pass(wr, prev) || !inScope(m.scope, c, prev))) return { ok: false, error: `Tu rol no puede eliminar ese elemento de ${c}.` };
     const hidden = (stored as any)[c].filter((s: any) => !visKeys.has(keyOf(c, s)));
     (merged as any)[c] = [...hidden, ...sub];
   }
@@ -148,5 +156,9 @@ export function authorizeWrite(stored: Data, submitted: Partial<Data>, m: Member
 export const canRead = (role: RoleId, c: Coll) => role === 'propietario' || (role in STAFF_RULES && !!STAFF_RULES[role as StaffRole].read[c]);
 export const canWrite = (role: RoleId, c: Coll) => role === 'propietario' || (role in STAFF_RULES && !!STAFF_RULES[role as StaffRole].write[c]);
 export const canWriteDoc = (role: RoleId, doc: { category: string }) => role === 'propietario' || (role in STAFF_RULES && pass(STAFF_RULES[role as StaffRole].write.docs, doc));
+export const parseScope = (raw: string | null | undefined): ClientScope => {
+  if (!raw) return []; // sin asignación: denegar
+  try { const v = JSON.parse(raw); return v === 'all' ? 'all' : Array.isArray(v) ? v.filter((x: unknown) => typeof x === 'string') : []; } catch { return []; }
+};
 export const isStaff = (role: RoleId) => role === 'propietario' || (STAFF_ROLES as readonly string[]).includes(role);
 export const employeeOf = (data: Data, id: string): Employee | undefined => data.employees.find(e => e.id === id);
