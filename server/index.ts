@@ -280,26 +280,8 @@ const routes: Handler = async (req, res, p, url) => {
       }
     }
 
-    if (p[2] === 'portal' && p[3] === 'upload' && method === 'POST') { // el cliente sube a SU expediente
-      if (m.role !== 'cliente') throw new HttpError(403, 'Solo clientes del portal');
-      if (!m.modules.includes('documentos')) throw new HttpError(403, 'Tu acceso no incluye documentos');
-      const buf = await readBody(req, MAX_FILE);
-      const h = (n: string) => decodeURIComponent(String(req.headers[n] ?? ''));
-      const name = safeFileName(h('x-name') || 'archivo');
-      const chk = validateUpload(name, buf);
-      if (!chk.ok) throw new HttpError(415, chk.error);
-      const category = h('x-category').slice(0, 80) || 'Otro';
-      if (category === 'Nómina' && !m.modules.includes('nominas')) throw new HttpError(403, 'Tu acceso no incluye documentos de nómina');
-      const key = id();
-      const fp = filePath(ws, key);
-      const sha = crypto.createHash('sha256').update(buf).digest('hex');
-      fs.mkdirSync(path.dirname(fp), { recursive: true }); fs.writeFileSync(fp, buf);
-      const doc = { id: id(), clientId: m.clientId, category, period: h('x-period').slice(0, 7), name, mime: chk.mime, size: buf.length, fileKey: key, status: 'En revisión', createdAt: now(), uploadedBy: 'cliente', sha256: sha };
-      db.prepare('INSERT INTO files(workspace_id,key,name,mime,size,created_at,sha256,mime_detected) VALUES(?,?,?,?,?,?,?,?)').run(ws, key, name, chk.mime, buf.length, Date.now(), sha, chk.mime);
-      const r = wsRow(ws); const d = parseData(r.data); d.docs.push(doc as never);
-      db.prepare('UPDATE workspaces SET data=?, rev=rev+1 WHERE id=?').run(JSON.stringify(d), ws);
-      audit(ws, a.userId, 'portal.upload', key);
-      return { doc };
+    if (p[2] === 'portal') { // el portal es de solo consulta y descarga: todo lo carga el despacho
+      throw new HttpError(403, 'El portal es de solo consulta y descarga. Los documentos los carga el despacho.');
     }
 
     if (p[2] === 'invites') {

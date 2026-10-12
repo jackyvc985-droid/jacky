@@ -35,7 +35,8 @@ export default function Documentos({ role, filterClient }: { role: Role; filterC
   };
 
   return (
-    <Page title="Documentos" actions={role === 'lectura' ? undefined : <Btn label="Subir documento" onPress={() => { if (role === 'propietario' && data.clients.length === 0) return notify('Primero crea un cliente.'); setUploading(true); }} />}>
+    <Page title="Documentos" actions={role !== 'propietario' ? undefined : <Btn label="Subir documento" onPress={() => { if (role === 'propietario' && data.clients.length === 0) return notify('Primero crea un cliente.'); setUploading(true); }} />}>
+      {role === 'cliente' && <Banner tone="info">Aquí puedes consultar y descargar los documentos de tu expediente. Los carga y actualiza el despacho.</Banner>}
       {mode === 'cloud' && <Banner tone="info">Los archivos se guardan en el servidor y se descargan con autorización de tu cuenta. El estado «Completo» indica organización del expediente, no certificación fiscal.</Banner>}
       {mode === 'local' && <Banner tone="info">Los archivos se guardan en este dispositivo. Si se borra el almacenamiento del navegador, se pierden. El estado «Completo» indica organización del expediente, no certificación fiscal.</Banner>}
       {mode === 'demo' && <Banner tone="warn">Demostración: los archivos de ejemplo no tienen contenido real, pero puedes subir uno para probar.</Banner>}

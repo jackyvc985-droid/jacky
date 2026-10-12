@@ -79,13 +79,14 @@ test('portal: invitación con código, vista filtrada, sin escritura, sin ver ot
   assert.equal((await call('GET', `/ws/${ws}/audit`, clientTok)).status, 403);
 });
 
-test('el cliente sube a su expediente y queda En revisión', async () => {
+test('el portal es de solo consulta y descarga: el cliente no puede subir ni modificar nada', async () => {
   const up = await call('POST', `/ws/${ws}/portal/upload`, clientTok, Buffer.from('<?xml version="1.0"?><a/>'), { 'x-name': 'cfdi.xml', 'x-mime': 'text/xml', 'x-category': 'CFDI/Factura', 'x-period': '2026-02' });
-  assert.equal(up.status, 200);
-  assert.equal(up.json.doc.status, 'En revisión');
-  assert.equal(up.json.doc.clientId, 'c1');
+  assert.equal(up.status, 403);
+  assert.equal((await call('PUT', `/ws/${ws}/files/intento-sube1`, clientTok, PDF('x'), { 'x-name': 'x.pdf' })).status, 403);
+  assert.equal((await call('DELETE', `/ws/${ws}/files/archivo1234`, clientTok)).status, 403);
   const o = await call('GET', `/ws/${ws}/data`, ownerTok);
-  assert.ok(o.json.data.docs.some((x: any) => x.uploadedBy === 'cliente' && x.clientId === 'c1'));
+  assert.ok(!o.json.data.docs.some((x: any) => x.uploadedBy === 'cliente'));
+  assert.equal((await call('GET', `/ws/${ws}/files/archivo1234`, clientTok)).status, 200);   // descargar sí
 });
 
 test('revocar acceso corta el portal; auditoría y respaldo solo para el propietario', async () => {
@@ -180,9 +181,7 @@ test('portal: mínimo privilegio por defecto (sin nómina ni cifras), notas inte
   assert.ok(!JSON.stringify(v.json).includes('Ana'));                              // ni el nombre del empleado en el JSON
   assert.equal((await call('GET', `/ws/${w}/files/nomina0001`, ct)).status, 404);  // IDOR: descarga directa por clave
   assert.equal((await call('GET', `/ws/${w}/files/acuse00001`, ct)).status, 200);
-  const up = await call('POST', `/ws/${w}/portal/upload`, ct, PDF('x'), { 'x-name': 'n.pdf', 'x-category': 'N%C3%B3mina' });
-  assert.equal(up.status, 403);                                                    // no puede subir como «Nómina» sin ese módulo
-  assert.equal((await call('POST', `/ws/${w}/portal/upload`, ct, Buffer.from('MZ binario'), { 'x-name': 'x.pdf', 'x-category': 'Acuse' })).status, 415);
+  assert.equal((await call('POST', `/ws/${w}/portal/upload`, ct, PDF('x'), { 'x-name': 'n.pdf', 'x-category': 'N%C3%B3mina' })).status, 403);   // el cliente nunca sube
 
   // el propietario abre módulos: efecto inmediato
   const set = await call('PUT', `/ws/${w}/invites/${encodeURIComponent('cli-mod@x.co')}/modules`, tok, { modules: ['documentos', 'nominas', 'movimientos', 'basura'] });
@@ -193,9 +192,9 @@ test('portal: mínimo privilegio por defecto (sin nómina ni cifras), notas inte
   assert.deepEqual(v.json.data.docs.map((x: any) => x.id).sort(), ['dc', 'dn']);
   assert.equal((await call('GET', `/ws/${w}/files/nomina0001`, ct)).status, 200);
   assert.equal(v.json.data.clients.length, 1);                                     // sigue sin ver a k2
-  // y los cierra: sin documentos no puede subir
+  // y los cierra
   await call('PUT', `/ws/${w}/invites/${encodeURIComponent('cli-mod@x.co')}/modules`, tok, { modules: ['tareas'] });
-  assert.equal((await call('POST', `/ws/${w}/portal/upload`, ct, PDF('x'), { 'x-name': 'n.pdf', 'x-category': 'Acuse' })).status, 403);
+  assert.equal((await call('GET', `/ws/${w}/files/acuse00001`, ct)).status, 404);
   assert.equal((await call('PUT', `/ws/${w}/invites/nadie%40x.co/modules`, tok, { modules: [] })).status, 404);
   const lst = await call('GET', `/ws/${w}/invites`, tok);
   assert.deepEqual(lst.json.members.find((m: any) => m.email === 'cli-mod@x.co').modules, ['tareas']);

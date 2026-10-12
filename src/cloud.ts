@@ -47,5 +47,3 @@ export const putFileCloud = (s: Session, key: string, bytes: Uint8Array, name: s
   api<{ ok: boolean; sha256: string; mime: string }>(s.apiUrl, s.token, 'PUT', `/ws/${s.workspaceId}/files/${key}`, bytes, { 'x-name': encodeURIComponent(name), 'x-mime': mime || '' });
 export const getFileCloud = (s: Session, key: string) => apiBytes(s.apiUrl, s.token, `/ws/${s.workspaceId}/files/${key}`);
 export const deleteFileCloud = (s: Session, key: string) => api(s.apiUrl, s.token, 'DELETE', `/ws/${s.workspaceId}/files/${key}`);
-export const portalUpload = (s: Session, bytes: Uint8Array, h: { name: string; mime: string; category: string; period: string }) =>
-  api(s.apiUrl, s.token, 'POST', `/ws/${s.workspaceId}/portal/upload`, bytes, { 'x-name': encodeURIComponent(h.name), 'x-mime': h.mime || '', 'x-category': encodeURIComponent(h.category), 'x-period': h.period });

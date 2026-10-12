@@ -16,6 +16,7 @@ L = lee · E = lee y escribe · — = sin acceso
 | Equipo, accesos, bitácora, respaldos, planes | E | — | — | — | — | — | — | — |
 
 Notas:
+- El **cliente solo consulta y descarga**: no sube, edita ni borra nada. Todo lo carga y mantiene el despacho (JACKY lo definió así).
 - Un **cliente** parte con el mínimo (documentos, proyectos y pendientes). Cifras, presupuestos, previsión, obligaciones y nóminas las abre el propietario módulo por módulo (ver `docs/diagnostico-kit.md`). Con el módulo «Nóminas» ve las de **todos** los trabajadores de su expediente.
 - Un **trabajador** nunca ve datos de otro trabajador ni del despacho. Se invita desde su ficha con un código de un solo uso.
 - Quien tiene permisos parciales puede guardar sin pisar lo que no ve: el servidor conserva intacto lo oculto, rechaza cambios en colecciones o documentos ajenos y rechaza sustituir un elemento que no ve.

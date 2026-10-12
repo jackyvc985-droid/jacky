@@ -3,7 +3,7 @@ import { Doc } from './domain/types.ts';
 import { uid, useStore } from './store';
 import * as local from './files';
 import { validateUpload, safeFileName } from './domain/uploads.ts';
-import { deleteFileCloud, getFileCloud, portalUpload, putFileCloud } from './cloud';
+import { deleteFileCloud, getFileCloud, putFileCloud } from './cloud';
 
 export type Picked = { uri: string; name: string; mime: string; size: number };
 
@@ -18,11 +18,7 @@ export function useDocFiles() {
         const name = safeFileName(p.name);
         const chk = validateUpload(name, bytes); // tipo, tamaño y contenido (el servidor lo vuelve a comprobar)
         if (!chk.ok) throw new Error(chk.error);
-        if (cloud && readOnly) { // cliente del portal: el servidor asigna su expediente
-          await portalUpload(cloud, bytes, { name, mime: chk.mime, category: meta.category, period: meta.period });
-          await refresh();
-          return;
-        }
+        if (readOnly) throw new Error('Tu acceso es de solo consulta y descarga.');
         const key = uid() + uid();
         let sha256: string | undefined;
         if (cloud) sha256 = (await putFileCloud(cloud, key, bytes, name, chk.mime)).sha256;

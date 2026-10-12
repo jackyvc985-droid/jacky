@@ -17,7 +17,7 @@ export const ROLE_SUMMARY: Record<RoleId, string> = {
   nomina: 'Trabajadores, nóminas y documentos de nómina. Lee clientes (sin notas internas).',
   proyectos: 'Proyectos y tareas. Lee clientes y documentos que no son de nómina.',
   facturacion: 'Movimientos, previsiones y documentos CFDI/Factura. Lee clientes, presupuestos y obligaciones.',
-  cliente: 'Solo su expediente y los módulos que se le autoricen. Sube documentos que quedan en revisión.',
+  cliente: 'Solo consulta y descarga de su expediente, en los módulos que se le autoricen. No sube, edita ni borra nada: todo lo carga el despacho.',
   empleado: 'Solo su ficha, sus nóminas y sus recibos.',
 };
 
