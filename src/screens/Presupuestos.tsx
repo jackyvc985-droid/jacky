@@ -7,7 +7,7 @@ import { budgetAlerts, budgetKey } from '../domain/accounting.ts';
 import { formatMXN, parseMoney } from '../domain/money.ts';
 import { clientName, clientOptions, thisPeriod } from './common.ts';
 
-export default function Presupuestos() {
+export default function Presupuestos({ role = 'propietario' }: { role?: 'propietario' | 'cliente' | 'lectura' }) {
   const { data, upsert, remove } = useStore();
   const [edit, setEdit] = useState<Budget | 'new' | null>(null);
   const alerts = budgetAlerts(data.budgets, data.movements);
@@ -20,7 +20,7 @@ export default function Presupuestos() {
     upsert('budgets', b, x => budgetKey(x) === original); setEdit(null);
   };
   return (
-    <Page title="Presupuestos" actions={<Btn label="+ Presupuesto" onPress={() => setEdit('new')} />}>
+    <Page title="Presupuestos" actions={role === 'propietario' ? <Btn label="+ Presupuesto" onPress={() => setEdit('new')} /> : undefined}>
       <Muted>Compara el gasto registrado de la categoría contra el límite del periodo. Alerta desde 80%.</Muted>
       {alerts.length === 0 && <Empty>Sin presupuestos.</Empty>}
       {alerts.map(a => (
@@ -32,7 +32,7 @@ export default function Presupuestos() {
           </View>
           <T>{formatMXN(a.spentCents)} de {formatMXN(a.budget.limitCents)} · {Math.round(a.pct)} % utilizado</T>
           {a.level === 'excedido' && <T bold style={{ color: theme.bad }}>{a.excess === null ? 'Gasto sin presupuesto asignado' : `${Math.round(a.excess)} % por encima del presupuesto (excede ${formatMXN(a.spentCents - a.budget.limitCents)})`}</T>}
-          <Row><Btn small kind="ghost" label="Editar" onPress={() => setEdit(a.budget)} /><Btn small kind="danger" label="Eliminar" onPress={() => remove('budgets', x => budgetKey(x) === budgetKey(a.budget))} /></Row>
+          {role === 'propietario' && <Row><Btn small kind="ghost" label="Editar" onPress={() => setEdit(a.budget)} /><Btn small kind="danger" label="Eliminar" onPress={() => remove('budgets', x => budgetKey(x) === budgetKey(a.budget))} /></Row>}
         </Card>
       ))}
       {edit && <FormModal title={edit === 'new' ? 'Nuevo presupuesto' : 'Editar presupuesto'} onClose={() => setEdit(null)} onSubmit={save}

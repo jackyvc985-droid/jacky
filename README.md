@@ -29,6 +29,10 @@ La app abre en **demostración** (identificada como tal; los datos no se guardan
 - **Estadísticas**: filtros por cliente y periodo, tendencia de 6 meses, gasto por categoría, presupuesto contra gasto (con «% utilizado» y «% por encima» por separado) y observaciones calculadas.
 - **Alertas** en Inicio: vencimientos a 7 y 1 día, presupuesto al 80 % y 100 %, vencidos y documentos por revisar (solo dentro de la app).
 - **Presupuestos** con alertas, **Planes** orientativos (Esencial $499, Profesional $999, Empresarial $1,999 MXN/mes; guardan una propuesta, no cobran).
+- **Trabajadores**: ficha completa (datos personales, relación laboral, salario, pago, INFONAVIT, historial y recibos). Cada trabajador puede tener su acceso para ver **solo** sus recibos.
+- **Recibos timbrados (CONTPAQi)**: se timbra en CONTPAQi y aquí se suben los XML (y PDF) de golpe: se reconocen cliente y trabajador, se valida el CFDI, se evitan duplicados por UUID, se concilian con el cálculo y quedan visibles al cliente (módulo «Nóminas») y al trabajador. La app no timbra.
+- **Resumen del periodo**: desglose general de nómina de todos los trabajadores por periodo y cliente, con totales, estado de recibo y CSV.
+- **Roles del equipo** (contador, responsable de nómina, administrador, proyectos, facturación) con permisos aplicados en el servidor: `docs/roles-y-permisos.md`.
 - **Nóminas** con cálculo automático mensual (`src/domain/fiscal.ts`) y **recibo desglosado**: percepciones (sueldo, otras gravadas, exentas), ISR paso a paso (tramo, excedente, tasa, cuota fija, subsidio), IMSS obrero por concepto, otras deducciones y neto; exportable a CSV. También admite captura manual.
 - **Fiscal**: obligaciones, importes y fechas; validador de CFDI 3.3/4.0 (estructura, RFC, UUID, timbre, aritmética); consulta de estatus ante el SAT vía servidor; resumen mensual exportable.
 - **Nube**: cuentas, espacios, portal de clientes con invitación por código, revisión optimista (nunca sobrescribe cambios ajenos sin avisar), consulta de cambios cada 15 s, eliminación física de archivos, bitácora y respaldos.
@@ -41,7 +45,7 @@ Ver `docs/diagnostico-kit.md`: qué existe, qué se comprobó, qué riesgo tiene
 Ver `docs/publicacion-y-derechos.md` (estado técnico verificado, decisiones pendientes de Canville, inventario de datos y expediente de derechos) y `docs/THIRD_PARTY_LICENSES.md`.
 
 ## Verificado
-`npm test` (48 pruebas: cálculos, CSV, permisos, respaldo, fiscal y 8 pruebas de integración del servidor), `tsc --noEmit`, `expo export --platform web` y recorridos en Chromium (escritorio y 390 px) del modo local y del flujo completo en la nube: cuenta de despacho, cliente invitado que solo ve su expediente, subida del cliente, conflicto entre dos dispositivos, revocación, respaldo y migración local→nube.
+`npm test` (61 pruebas: cálculos, CSV, permisos, respaldo, fiscal y 8 pruebas de integración del servidor), `tsc --noEmit`, `expo export --platform web` y recorridos en Chromium (escritorio y 390 px) del modo local y del flujo completo en la nube: cuenta de despacho, cliente invitado que solo ve su expediente, subida del cliente, conflicto entre dos dispositivos, revocación, respaldo y migración local→nube.
 
 ## Límites (importante)
 - **Fiscal**: la app **no presenta declaraciones** (eso requiere e.firma o contraseña en el portal del SAT; la app nunca las pide ni las guarda). El validador de CFDI **no verifica sello ni cadena original**. La consulta de estatus ante el SAT está implementada según la especificación pública pero **no se pudo probar contra el SAT real** desde el entorno de desarrollo.

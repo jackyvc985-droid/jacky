@@ -19,7 +19,7 @@ export type ReceiptPlan = {
   clientId: Id | ''; employeeId: Id | ''; createEmployee: boolean; payrollId: Id | ''; period: string;
 };
 
-export function planReceipts(items: { xmlName: string; xmlText: string; pdfName?: string }[], data: Data): ReceiptPlan[] {
+export function planReceipts(items: { xmlName: string; xmlText: string; pdfName?: string }[], data: Data, forceClient: Record<string, string> = {}): ReceiptPlan[] {
   const seen = new Set(data.payrolls.map(p => p.cfdi?.uuid).filter(Boolean) as string[]);
   return items.map(it => {
     const parsed = parseNominaCfdi(it.xmlText);
@@ -30,7 +30,7 @@ export function planReceipts(items: { xmlName: string; xmlText: string; pdfName?
     if (n.uuid && seen.has(n.uuid)) return { ...base, status: 'duplicado' as const, warnings: [...base.warnings, 'Este recibo (UUID) ya está cargado.'] };
     if (n.uuid) seen.add(n.uuid); // también detecta repetidos dentro del mismo lote
 
-    const client = data.clients.find(c => c.rfc && c.rfc.toUpperCase() === n.emisorRfc.toUpperCase());
+    const client = data.clients.find(c => c.id === forceClient[it.xmlName]) ?? data.clients.find(c => c.rfc && c.rfc.toUpperCase() === n.emisorRfc.toUpperCase());
     base.clientId = client?.id ?? '';
     const pool = data.employees.filter(e => !client || e.clientId === client.id || !e.clientId);
     const r = n.receptor;
@@ -81,13 +81,10 @@ export function buildReceiptRecords(plan: ReceiptPlan, data: Data, newId: () => 
   if (files.pdfKey && plan.pdfName && pdfDocId) docs.push(doc(pdfDocId, plan.pdfName, 'application/pdf', files.pdfKey, files.pdfSize ?? 0));
   const t = cfdiTotals(n.lines);
   const cfdi = { uuid: n.uuid, status: 'Timbrado' as const, xmlDocId, pdfDocId, fechaPago: n.fechaPago, fechaInicial: n.fechaInicial, fechaFinal: n.fechaFinal, diasPagados: n.diasPagados, emisorRfc: n.emisorRfc, receptorRfc: r.rfc, totalCents: n.totalCents, lines: n.lines, checkedAt: now, notes: plan.warnings.filter(w => w.startsWith('Difiere')) };
+  // Una vez timbrado, el CFDI es la cifra oficial: sustituye a la capturada o calculada en la app (la diferencia queda anotada).
+  const fromCfdi = { perceptionsCents: n.totalPercepciones, deductionsCents: n.totalDeducciones, subsidyPaidCents: n.totalOtrosPagos || undefined, source: 'cfdi' as const, employeeId, calc: { isrCents: t.isr, imssCents: t.imss, subsidyAppliedCents: n.subsidioCausadoCents, otherCents: t.other, tablesYear: Number(n.fechaPago.slice(0, 4)) }, cfdi };
   const payroll: Payroll = existing
-    ? { ...existing, employeeId, clientId: existing.clientId || plan.clientId, cfdi }
-    : {
-        id: payrollId, employee: employee?.name ?? data.employees.find(e => e.id === employeeId)?.name ?? r.nombre, clientId: plan.clientId, period: plan.period,
-        perceptionsCents: n.totalPercepciones, deductionsCents: n.totalDeducciones, subsidyPaidCents: n.totalOtrosPagos || undefined, employeeId, source: 'cfdi',
-        calc: { isrCents: t.isr, imssCents: t.imss, subsidyAppliedCents: n.subsidioCausadoCents, otherCents: t.other, tablesYear: Number(n.fechaPago.slice(0, 4)) },
-        cfdi,
-      };
+    ? { ...existing, ...fromCfdi, clientId: existing.clientId || plan.clientId }
+    : { id: payrollId, employee: employee?.name ?? data.employees.find(e => e.id === employeeId)?.name ?? r.nombre, clientId: plan.clientId, period: plan.period, ...fromCfdi };
   return { employee, payroll, docs };
 }

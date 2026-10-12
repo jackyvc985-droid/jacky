@@ -115,16 +115,18 @@ test('registros: nómina nueva desde el recibo (neto = Total del CFDI), trabajad
   assert.equal(rec.payroll.cfdi!.pdfDocId, rec.docs[1].id);
 });
 
-test('registros: un recibo se adjunta a una nómina calculada sin pisar sus cifras', () => {
+test('registros: al asociar un recibo a una nómina calculada, las cifras oficiales son las del CFDI y se anota la diferencia', () => {
   const d = base();
   d.employees = [{ ...blankEmployee('e1', 'c1'), name: 'Luis Pérez Pérez', rfc: 'PEPL850101AB1' }];
-  const calc: Payroll = { id: 'p1', employee: 'Luis Pérez Pérez', clientId: 'c1', period: '2026-10', perceptionsCents: 1500000, deductionsCents: 180000, employeeId: 'e1' };
+  const calc: Payroll = { id: 'p1', employee: 'Luis Pérez Pérez', clientId: 'c1', period: '2026-10', perceptionsCents: 1500000, deductionsCents: 180000, employeeId: 'e1', source: 'calculo' };
   d.payrolls = [calc];
   const [pl] = planReceipts([{ xmlName: 'a.xml', xmlText: xml() }], d);
   const rec = buildReceiptRecords(pl, d, (() => { let k = 0; return () => `n${++k}`; })(), { xmlKey: 'k', xmlSize: 1 });
-  assert.equal(rec.payroll.id, 'p1');
-  assert.equal(rec.payroll.deductionsCents, 180000);
-  assert.ok(rec.payroll.cfdi);
+  assert.equal(rec.payroll.id, 'p1');                                        // misma nómina, no se duplica
+  assert.equal(rec.payroll.source, 'cfdi');
+  assert.equal(payrollNet(rec.payroll), pl.parsed.nomina!.totalCents);       // neto = Total del CFDI
+  assert.equal(rec.payroll.deductionsCents, 140282 + 39454);
+  assert.ok(rec.payroll.cfdi!.notes.some(n => n.startsWith('Difiere del cálculo de la app')));
   assert.equal(rec.employee, undefined);
 });
 

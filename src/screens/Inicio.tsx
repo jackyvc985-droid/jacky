@@ -16,6 +16,7 @@ export default function Inicio({ role }: { role: 'propietario' | 'cliente' }) {
   const alerts = budgetAlerts(d.budgets, d.movements).filter(a => a.level !== 'ok');
   const soon = d.obligations.filter(o => o.status === 'Pendiente' && o.dueDate <= addDays(today(), 7)).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   const lateForecasts = overdue(d.forecasts, today());
+  const noReceipt = d.payrolls.filter(p => !p.cfdi && p.period <= thisPeriod());
   const inReview = d.docs.filter(x => x.status === 'En revisión');
   return (
     <Page title={role === 'cliente' ? 'Mi expediente' : 'Inicio'}>
@@ -37,7 +38,7 @@ export default function Inicio({ role }: { role: 'propietario' | 'cliente' }) {
       <Card>
         <H2>Alertas</H2>
         <Muted>Avisos dentro de la app calculados con tus datos; no se envían por correo, push ni WhatsApp.</Muted>
-        {alerts.length + overdueTasks.length + lateForecasts.length + soon.length + inReview.length === 0 && <Muted>Sin alertas por ahora.</Muted>}
+        {alerts.length + overdueTasks.length + lateForecasts.length + soon.length + inReview.length + noReceipt.length === 0 && <Muted>Sin alertas por ahora.</Muted>}
         {lateForecasts.map(f => <Row key={f.id}><T>{f.kind === 'cobro' ? 'Cobro vencido' : 'Pago vencido'}: {f.concept} ({formatMXN(f.amountCents)})</T><Badge tone="bad" label={`Venció ${f.dueDate}`} /></Row>)}
         {overdueTasks.map(x => <Row key={x.id}><T>Tarea vencida: {x.title}</T><Badge tone="bad" label={`Venció ${x.due}`} /></Row>)}
         {soon.map(o => <Row key={o.id}><T>{o.name} · {clientName(d, o.clientId)}</T><Badge tone={o.dueDate <= addDays(today(), 1) ? 'bad' : 'warn'} label={o.dueDate === today() ? 'Vence hoy' : o.dueDate <= addDays(today(), 1) ? 'Vence mañana' : `Vence ${o.dueDate}`} /></Row>)}
@@ -47,6 +48,7 @@ export default function Inicio({ role }: { role: 'propietario' | 'cliente' }) {
             <Badge tone={a.level === 'excedido' ? 'bad' : 'warn'} label={a.level === 'excedido' ? (a.excess === null ? 'sin presupuesto' : `${Math.round(a.excess)} % por encima`) : `${Math.round(a.pct)} % utilizado`} />
           </Row>
         ))}
+        {noReceipt.length > 0 && <Row><T>{noReceipt.length} nómina(s) sin recibo timbrado cargado</T><Badge tone="warn" label="Falta cargar" /></Row>}
         {role === 'propietario' && inReview.length > 0 && <Row><T>{inReview.length} documento(s) requieren revisión</T><Badge tone="warn" label="Requiere revisión" /></Row>}
       </Card>
     </Page>

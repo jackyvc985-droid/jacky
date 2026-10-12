@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Data, Mode, emptyData } from './domain/types.ts';
 import { ClientModule, DEFAULT_CLIENT_MODULES, clientView } from './domain/permissions.ts';
+import type { RoleId } from './domain/roles.ts';
 import { demoData } from './seed.ts';
 import { ApiError, Membership, Session, api, fetchData, normalizeUrl, putData } from './cloud';
 import { secureDel, secureGet, secureSet } from './secure';
@@ -12,7 +13,7 @@ const K_SESSION = 'canville:session:v1';
 const POLL_MS = 15000;
 const SAVE_DEBOUNCE_MS = 700;
 
-export type Role = 'propietario' | 'cliente';
+export type Role = 'propietario' | 'cliente'; // simplificado: quien edita / quien solo consulta como cliente
 export type SyncState = 'idle' | 'saving' | 'error';
 type Collections = { [K in keyof Data]: Data[K] extends (infer T)[] ? T : never };
 
@@ -22,6 +23,8 @@ export type Ctx = {
   data: Data;                       // datos del modo actual (en nube de cliente: ya filtrados por el servidor)
   view: Data;                       // lo que se muestra (vista previa de cliente filtra localmente)
   role: Role;
+  memberRole: RoleId;               // rol real del usuario en el espacio (propietario, contador, nómina, trabajador…)
+  employeeId: string;               // trabajador ligado a la cuenta (rol «empleado»)
   activeClientId: string;           // cliente del portal (real o en vista previa)
   modules: ClientModule[] | null;   // módulos autorizados al cliente (null = propietario: todos)
   readOnly: boolean;
@@ -56,7 +59,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<Data>(demoData);
   const [previewClientId, setPreviewClientId] = useState('');
   const [session, setSession] = useState<Session | null>(null);
-  const [cloudRole, setCloudRole] = useState<Role>('propietario');
+  const [cloudRole, setCloudRole] = useState<RoleId>('propietario');
+  const [cloudEmployeeId, setCloudEmployeeId] = useState('');
   const [cloudClientId, setCloudClientId] = useState('');
   const [cloudModules, setCloudModules] = useState<ClientModule[] | null>(null);
   const [sync, setSync] = useState<Ctx['sync']>({ state: 'idle', message: '', lastSync: '' });
@@ -72,19 +76,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const saving = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const readOnlyCloud = mode === 'cloud' && cloudRole === 'cliente';
+  const readOnlyCloud = mode === 'cloud' && (cloudRole === 'cliente' || cloudRole === 'empleado');
 
   // ---------- nube ----------
   const loadCloud = useCallback(async (s: Session) => {
     const r = await fetchData(s);
     revRef.current = r.rev; dirty.current = false;
-    setData({ ...emptyData(), ...r.data }); setCloudRole(r.role); setCloudClientId(r.clientId); setCloudModules(r.modules ?? null);
+    setData({ ...emptyData(), ...r.data }); setCloudRole(r.role as RoleId); setCloudClientId(r.clientId); setCloudEmployeeId((r as any).employeeId ?? ''); setCloudModules(r.modules ?? null);
     setSync({ state: 'idle', message: '', lastSync: new Date().toISOString() });
   }, []);
 
   const flush = useCallback(async () => {
     const s = sessionRef.current;
-    if (modeRef.current !== 'cloud' || !s || roleRef.current !== 'propietario' || saving.current || !dirty.current) return;
+    if (modeRef.current !== 'cloud' || !s || roleRef.current === 'cliente' || roleRef.current === 'empleado' || saving.current || !dirty.current) return;
     saving.current = true; setSync(x => ({ ...x, state: 'saving', message: '' }));
     try {
       while (dirty.current) {
@@ -233,14 +237,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     await secureDel(K_SESSION);
     if (timer.current) clearTimeout(timer.current);
     dirty.current = false; sessionRef.current = null;
-    setSession(null); setCloudRole('propietario'); setCloudClientId(''); setCloudModules(null);
+    setSession(null); setCloudRole('propietario'); setCloudClientId(''); setCloudEmployeeId(''); setCloudModules(null);
     const hasLocal = !!(await AsyncStorage.getItem(K_DATA).catch(() => null));
     if (hasLocal) await startLocal(); else backToDemo();
   }, [startLocal, backToDemo]);
   const logout = useCallback(() => doLogout(true), [doLogout]);
 
   // ---------- mutaciones ----------
-  const guard = () => !(modeRef.current === 'cloud' && roleRef.current === 'cliente');
+  const guard = () => !(modeRef.current === 'cloud' && (roleRef.current === 'cliente' || roleRef.current === 'empleado'));
   const upsert: Ctx['upsert'] = useCallback((col, item, match) => {
     if (!guard()) return;
     setData(d => {
@@ -262,14 +266,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [markDirty]);
 
   const role: Role = readOnlyCloud || previewClientId ? 'cliente' : 'propietario';
+  const memberRole: RoleId = mode === 'cloud' ? (previewClientId ? 'cliente' : cloudRole) : 'propietario';
   const activeClientId = previewClientId || (readOnlyCloud ? cloudClientId : '');
   const view = useMemo(() => (previewClientId ? clientView(data, previewClientId, DEFAULT_CLIENT_MODULES) : data), [data, previewClientId]);
-  const modules: ClientModule[] | null = previewClientId ? DEFAULT_CLIENT_MODULES : readOnlyCloud ? cloudModules ?? DEFAULT_CLIENT_MODULES : null;
+  const modules: ClientModule[] | null = previewClientId ? DEFAULT_CLIENT_MODULES : readOnlyCloud && cloudRole === 'cliente' ? cloudModules ?? DEFAULT_CLIENT_MODULES : null;
 
   const value = useMemo<Ctx>(() => ({
-    ready, mode, data, view, role, activeClientId, modules, readOnly: readOnlyCloud, previewClientId, setPreviewClientId, session, sync,
+    ready, mode, data, view, role, memberRole, employeeId: cloudEmployeeId, activeClientId, modules, readOnly: readOnlyCloud, previewClientId, setPreviewClientId, session, sync,
     notice, clearNotice: () => setNotice(''),
     startLocal, backToDemo, resetLocal, replaceData, login, register, acceptInvite, logout, switchWorkspace, enterCloud, refresh, upsert, remove, add,
-  }), [ready, mode, data, view, role, activeClientId, modules, readOnlyCloud, previewClientId, session, sync, notice, startLocal, backToDemo, resetLocal, replaceData, login, register, acceptInvite, logout, switchWorkspace, enterCloud, refresh, upsert, remove, add]);
+  }), [ready, mode, data, view, role, memberRole, cloudEmployeeId, activeClientId, modules, readOnlyCloud, previewClientId, session, sync, notice, startLocal, backToDemo, resetLocal, replaceData, login, register, acceptInvite, logout, switchWorkspace, enterCloud, refresh, upsert, remove, add]);
   return <C.Provider value={value}>{children}</C.Provider>;
 }

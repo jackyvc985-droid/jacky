@@ -9,12 +9,12 @@ import { CLIENT_MODULES, ClientModule, DEFAULT_CLIENT_MODULES, MODULE_LABELS } f
 
 const fields = [
   { key: 'name', label: 'Nombre o razón social', required: true },
-  { key: 'rfc', label: 'RFC' }, { key: 'email', label: 'Correo' }, { key: 'phone', label: 'Teléfono' },
+  { key: 'rfc', label: 'RFC', hint: 'Necesario para reconocer sus recibos de nómina timbrados.' }, { key: 'email', label: 'Correo' }, { key: 'phone', label: 'Teléfono' },
   { key: 'status', label: 'Estado', type: 'select' as const, options: [{ value: 'Activo', label: 'Activo' }, { value: 'Inactivo', label: 'Inactivo' }] },
   { key: 'notes', label: 'Notas', type: 'multiline' as const },
 ];
 
-export default function Clientes({ onOpenDocs }: { onOpenDocs: (clientId: string) => void }) {
+export default function Clientes({ onOpenDocs, readOnly = false }: { onOpenDocs: (clientId: string) => void; readOnly?: boolean }) {
   const { data, upsert, remove, mode, setPreviewClientId, session } = useStore();
   const files = useDocFiles();
   const [editing, setEditing] = useState<Client | 'new' | null>(null);
@@ -32,7 +32,7 @@ export default function Clientes({ onOpenDocs }: { onOpenDocs: (clientId: string
     const have = new Set(docs.filter(x => x.status === 'Completo').map(x => x.category));
     const invites = data.invites.filter(i => i.clientId === c.id);
     return (
-      <Page title={c.name} actions={<><Btn small kind="ghost" label="← Clientes" onPress={() => setSel(null)} /><Btn small label="Editar" onPress={() => setEditing(c)} /></>}>
+      <Page title={c.name} actions={<><Btn small kind="ghost" label="← Clientes" onPress={() => setSel(null)} />{!readOnly && <Btn small label="Editar" onPress={() => setEditing(c)} />}</>}>
         <Card>
           <T>RFC: {c.rfc || '—'}</T><T>Correo: {c.email || '—'}</T><T>Teléfono: {c.phone || '—'}</T>
           <Badge label={c.status} tone={c.status === 'Activo' ? 'ok' : 'muted'} />
@@ -46,7 +46,7 @@ export default function Clientes({ onOpenDocs }: { onOpenDocs: (clientId: string
           ))}
           <Btn small kind="ghost" label={`Ver documentos (${docs.length})`} onPress={() => onOpenDocs(c.id)} />
         </Card>
-        {mode === 'cloud' && session ? <CloudPortal clientId={c.id} email={c.email} /> : (
+        {readOnly ? null : mode === 'cloud' && session ? <CloudPortal clientId={c.id} email={c.email} /> : (
         <Card>
           <H2>Portal del cliente</H2>
           <Banner tone="warn">El portal con acceso remoto requiere iniciar sesión en la nube (Configuración → Cuenta en la nube). En este modo la invitación solo se registra localmente y no da acceso a nadie.</Banner>
@@ -56,21 +56,21 @@ export default function Clientes({ onOpenDocs }: { onOpenDocs: (clientId: string
           <Btn small kind="ghost" label="Vista previa como cliente" onPress={() => setPreviewClientId(c.id)} />
           <Muted>La vista previa no modifica los permisos reales.</Muted>
         </Card>)}
-        <Btn kind="danger" label="Eliminar cliente" onPress={() => confirmAction('Se eliminarán también sus documentos y datos asociados. ¿Continuar?', async () => {
+        {!readOnly && <Btn kind="danger" label="Eliminar cliente" onPress={() => confirmAction('Se eliminarán también sus documentos y datos asociados. ¿Continuar?', async () => {
           for (const d of docs) await files.deleteFileOnly(d);
           remove('docs', x => x.clientId === c.id); remove('tasks', x => x.clientId === c.id);
           remove('projects', x => x.clientId === c.id); remove('invites', x => x.clientId === c.id);
           remove('payrolls', x => x.clientId === c.id); remove('obligations', x => x.clientId === c.id);
           remove('budgets', x => x.clientId === c.id);
           remove('clients', x => x.id === c.id); setSel(null);
-        })} />
+        })} />}
         {editing && <FormModal title="Editar cliente" fields={fields} initial={{ ...c }} onSubmit={save} onClose={() => setEditing(null)} />}
       </Page>
     );
   }
 
   return (
-    <Page title="Clientes" actions={<Btn label="+ Nuevo cliente" onPress={() => setEditing('new')} />}>
+    <Page title="Clientes" actions={readOnly ? undefined : <Btn label="+ Nuevo cliente" onPress={() => setEditing('new')} />}>
       {data.clients.length === 0 && <Empty>Aún no hay clientes. Crea el primero.</Empty>}
       <Card>
         {data.clients.map(x => (

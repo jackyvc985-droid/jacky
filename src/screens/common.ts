@@ -7,4 +7,5 @@ export const clientOptions = (d: Data, allowNone = false) => [
   ...(allowNone ? [{ value: '', label: 'Ninguno' }] : []),
   ...d.clients.map(c => ({ value: c.id, label: c.name })),
 ];
-export type Role = 'propietario' | 'cliente';
+/** 'lectura' = miembro del equipo que puede ver esta pantalla pero no modificarla. */
+export type Role = 'propietario' | 'cliente' | 'lectura';

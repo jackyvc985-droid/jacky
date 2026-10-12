@@ -2,6 +2,10 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { StoreProvider, useStore } from './src/store';
+import { canRead, canWrite, type Coll } from './src/domain/roles.ts';
+import Trabajadores from './src/screens/Trabajadores';
+import MisRecibos from './src/screens/MisRecibos';
+import type { Role } from './src/screens/common.ts';
 import type { ClientModule } from './src/domain/permissions.ts';
 import { Banner, Btn, theme } from './src/ui/kit.tsx';
 import Inicio from './src/screens/Inicio.tsx';
@@ -18,20 +22,25 @@ import Planeacion from './src/screens/Planeacion';
 import Planes from './src/screens/Planes.tsx';
 import Configuracion from './src/screens/Configuracion.tsx';
 
-type Key = 'inicio' | 'planeacion' | 'estadisticas' | 'clientes' | 'documentos' | 'tareas' | 'proyectos' | 'movimientos' | 'presupuestos' | 'nominas' | 'fiscal' | 'planes' | 'config';
-const OWNER_NAV: [Key, string][] = [['inicio', 'Inicio'], ['planeacion', 'Planeación'], ['estadisticas', 'Estadísticas'], ['clientes', 'Clientes'], ['documentos', 'Documentos'], ['tareas', 'Tareas'], ['proyectos', 'Proyectos'], ['movimientos', 'Movimientos'], ['presupuestos', 'Presupuestos'], ['nominas', 'Nóminas'], ['fiscal', 'Fiscal'], ['planes', 'Planes'], ['config', 'Configuración']];
+type Key = 'inicio' | 'planeacion' | 'estadisticas' | 'clientes' | 'documentos' | 'tareas' | 'proyectos' | 'movimientos' | 'presupuestos' | 'trabajadores' | 'nominas' | 'recibos' | 'fiscal' | 'planes' | 'config';
+const OWNER_NAV: [Key, string][] = [['inicio', 'Inicio'], ['planeacion', 'Planeación'], ['estadisticas', 'Estadísticas'], ['clientes', 'Clientes'], ['documentos', 'Documentos'], ['tareas', 'Tareas'], ['proyectos', 'Proyectos'], ['movimientos', 'Movimientos'], ['presupuestos', 'Presupuestos'], ['trabajadores', 'Trabajadores'], ['nominas', 'Nóminas'], ['fiscal', 'Fiscal'], ['planes', 'Planes'], ['config', 'Configuración']];
+// Colección que debe poder leer el rol del equipo para ver cada pantalla (el servidor la filtra igual).
+const NAV_COLL: Partial<Record<Key, Coll>> = { clientes: 'clients', documentos: 'docs', tareas: 'tasks', proyectos: 'projects', movimientos: 'movements', estadisticas: 'movements', presupuestos: 'budgets', planeacion: 'forecasts', fiscal: 'obligations', nominas: 'payrolls', trabajadores: 'employees' };
 // Cada pantalla del portal exige su módulo; sin módulo no aparece (y el servidor tampoco envía esos datos).
 const CLIENT_NAV: [Key, string, ClientModule | null][] = [['inicio', 'Mi expediente', null], ['documentos', 'Documentos', 'documentos'], ['proyectos', 'Proyectos', 'proyectos'], ['tareas', 'Pendientes', 'tareas'], ['movimientos', 'Cifras', 'movimientos'], ['estadisticas', 'Estadísticas', 'movimientos'], ['presupuestos', 'Presupuestos', 'presupuestos'], ['planeacion', 'Previsión', 'previsiones'], ['fiscal', 'Obligaciones', 'fiscal'], ['nominas', 'Nóminas', 'nominas']];
 
 function Shell() {
-  const { ready, mode, previewClientId, setPreviewClientId, data, role, notice, clearNotice, sync, session, modules } = useStore();
+  const { ready, mode, previewClientId, setPreviewClientId, data, role, memberRole, notice, clearNotice, sync, session, modules } = useStore();
   const [screen, setScreen] = useState<Key>('inicio');
   const [docClient, setDocClient] = useState('');
   const { width } = useWindowDimensions();
   const wide = width >= 820;
   const clientNav: [Key, string][] = CLIENT_NAV.filter(n => n[2] === null || (modules ?? []).includes(n[2])).map(n => [n[0], n[1]]);
-  const nav: [Key, string][] = role === 'cliente' ? (previewClientId ? clientNav : [...clientNav, ['config', 'Cuenta']]) : OWNER_NAV;
-  const current: Key = nav.some(n => n[0] === screen) ? screen : 'inicio';
+  const staffNav: [Key, string][] = OWNER_NAV.filter(([k]) => k === 'inicio' || k === 'config' || (memberRole === 'propietario') || (NAV_COLL[k] && canRead(memberRole, NAV_COLL[k]!)));
+  const nav: [Key, string][] = memberRole === 'empleado' ? [['recibos', 'Mis recibos'], ['config', 'Cuenta']] : role === 'cliente' ? (previewClientId ? clientNav : [...clientNav, ['config', 'Cuenta']]) : staffNav;
+  // Rol efectivo por pantalla: edita quien puede escribir esa colección; el resto solo consulta.
+  const eff = (c: Coll): Role => (role === 'cliente' ? 'cliente' : canWrite(memberRole, c) ? 'propietario' : 'lectura');
+  const current: Key = nav.some(n => n[0] === screen) ? screen : nav[0][0];
 
   if (!ready) return <View style={{ flex: 1, justifyContent: 'center' }}><ActivityIndicator size="large" color={theme.primary} /></View>;
 
@@ -39,16 +48,18 @@ function Shell() {
   const body = (() => {
     switch (current) {
       case 'inicio': return <Inicio role={role} />;
-      case 'clientes': return <Clientes onOpenDocs={id => { setDocClient(id); setScreen('documentos'); }} />;
-      case 'documentos': return <Documentos key={docClient} role={role} filterClient={docClient} />;
-      case 'tareas': return <Tareas role={role} />;
-      case 'proyectos': return <Proyectos role={role} />;
-      case 'movimientos': return <Movimientos role={role} />;
-      case 'presupuestos': return <Presupuestos />;
-      case 'nominas': return <Nominas role={role} />;
-      case 'fiscal': return <Fiscal />;
+      case 'clientes': return <Clientes readOnly={eff('clients') !== 'propietario'} onOpenDocs={id => { setDocClient(id); setScreen('documentos'); }} />;
+      case 'documentos': return <Documentos key={docClient} role={eff('docs')} filterClient={docClient} />;
+      case 'tareas': return <Tareas role={eff('tasks')} />;
+      case 'proyectos': return <Proyectos role={eff('projects')} />;
+      case 'movimientos': return <Movimientos role={eff('movements')} />;
+      case 'presupuestos': return <Presupuestos role={eff('budgets')} />;
+      case 'trabajadores': return <Trabajadores role={eff('employees')} />;
+      case 'nominas': return <Nominas role={eff('payrolls')} />;
+      case 'recibos': return <MisRecibos />;
+      case 'fiscal': return <Fiscal role={eff('obligations')} />;
       case 'estadisticas': return <Estadisticas role={role} />;
-      case 'planeacion': return <Planeacion role={role} />;
+      case 'planeacion': return <Planeacion role={eff('forecasts')} />;
       case 'planes': return <Planes />;
       case 'config': return <Configuracion />;
     }

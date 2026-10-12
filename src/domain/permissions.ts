@@ -42,4 +42,4 @@ export function clientView(data: Data, clientId: Id, modules: readonly ClientMod
 }
 
 /** Solo el propietario cambia el estado administrativo de un documento. */
-export const canChangeDocStatus = (role: 'propietario' | 'cliente') => role === 'propietario';
+export const canChangeDocStatus = (role: string) => role === 'propietario';

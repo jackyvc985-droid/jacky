@@ -9,6 +9,7 @@ import { ApiError, DEFAULT_API, api, fetchData, putData, putFileCloud } from '..
 import { exportText, readBytes as localRead, requestPersistence, writeBytes as localWrite } from '../files';
 import { fromB64, makeBackup, parseBackup } from '../backup.ts';
 import { emptyData } from '../domain/types.ts';
+import { ROLE_LABELS, ROLE_SUMMARY, STAFF_ROLES, type RoleId } from '../domain/roles.ts';
 import type { Data } from '../domain/types.ts';
 
 const input = { borderWidth: 1, borderColor: '#d1d5db', borderRadius: 8, padding: 10, fontSize: 15, color: theme.text, backgroundColor: '#fff' } as const;
@@ -149,6 +150,8 @@ export default function Configuracion() {
         })} />}
       </Card>
 
+      {isOwnerCloud && session && <TeamAccess />}
+
       {isOwnerCloud && (
         <Card>
           <H2>Bitácora reciente</H2>
@@ -174,5 +177,34 @@ export default function Configuracion() {
       )}
       <Banner tone="warn">Esta aplicación no sustituye la asesoría de un contador ni garantiza certeza jurídica o contable.</Banner>
     </Page>
+  );
+}
+
+/** Equipo del despacho: roles con permisos distintos (la matriz completa está en el servidor). */
+function TeamAccess() {
+  const { session } = useStore();
+  type Entry = { email: string; role: RoleId };
+  const [list, setList] = useState<{ pending: Entry[]; members: Entry[] } | null>(null);
+  const [inviting, setInviting] = useState(false);
+  const [code, setCode] = useState<{ email: string; code: string } | null>(null);
+  const s = session!;
+  const load = () => api(s.apiUrl, s.token, 'GET', `/ws/${s.workspaceId}/invites`).then(setList).catch(e => notify(e.message));
+  useEffect(() => { load(); }, []);
+  const isStaff = (e: Entry) => (STAFF_ROLES as readonly string[]).includes(e.role);
+  const revoke = (email: string) => api(s.apiUrl, s.token, 'DELETE', `/ws/${s.workspaceId}/invites/${encodeURIComponent(email)}`).then(load).catch(e => notify(e.message));
+  return (
+    <Card>
+      <H2>Equipo y accesos</H2>
+      <Banner tone="info">Cada persona del despacho entra con su propio correo y ve solo lo que su rol permite; el servidor lo hace cumplir. Las invitaciones usan un código de un solo uso que compartes tú. Los clientes se invitan desde su ficha y los trabajadores desde la suya.</Banner>
+      {code && <Banner tone="warn">Código para {code.email}: {code.code} — cópialo ahora, no se vuelve a mostrar.</Banner>}
+      {list?.members.filter(isStaff).map(m => <Row key={m.email}><View style={{ flex: 1 }}><T bold>{m.email}</T><Muted>{ROLE_LABELS[m.role]}</Muted></View><Badge tone="ok" label="Con acceso" /><Btn small kind="danger" label="Revocar" onPress={() => confirmAction(`¿Revocar acceso de ${m.email}?`, () => revoke(m.email))} /></Row>)}
+      {list?.pending.filter(isStaff).map(m => <Row key={m.email}><View style={{ flex: 1 }}><T bold>{m.email}</T><Muted>{ROLE_LABELS[m.role]}</Muted></View><Badge tone="warn" label="Invitación pendiente" /><Btn small kind="danger" label="Cancelar" onPress={() => revoke(m.email)} /></Row>)}
+      {list && !list.members.some(isStaff) && !list.pending.some(isStaff) && <Muted>Aún no hay personas del equipo con acceso.</Muted>}
+      <Btn small label="Invitar a una persona del equipo" onPress={() => setInviting(true)} />
+      {inviting && <FormModal title="Invitar al equipo" initial={{ role: 'contador' }} onClose={() => setInviting(false)}
+        fields={[{ key: 'email', label: 'Correo', required: true }, { key: 'role', label: 'Rol', type: 'select', options: STAFF_ROLES.map(r => ({ value: r, label: ROLE_LABELS[r] })) }]}
+        extra={<View style={{ marginTop: 10, gap: 4 }}>{STAFF_ROLES.map(r => <Muted key={r}><T bold style={{ fontSize: 13 }}>{ROLE_LABELS[r]}: </T>{ROLE_SUMMARY[r]}</Muted>)}</View>}
+        onSubmit={async v => { const r = await api<{ code: string; email: string }>(s.apiUrl, s.token, 'POST', `/ws/${s.workspaceId}/invites`, { email: v.email.trim(), role: v.role }); setCode(r); setInviting(false); load(); }} />}
+    </Card>
   );
 }

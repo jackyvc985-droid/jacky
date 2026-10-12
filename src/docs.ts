@@ -30,6 +30,15 @@ export function useDocFiles() {
         const doc: Doc = { id: uid(), clientId: meta.clientId, category: meta.category, period: meta.period, name, mime: chk.mime, size: p.size || bytes.length, fileKey: key, status: 'En revisión', createdAt: new Date().toISOString(), uploadedBy: role === 'cliente' ? 'cliente' : 'despacho', ...(sha256 ? { sha256 } : {}) };
         upsert('docs', doc, x => x.id === doc.id);
       },
+      /** Valida y guarda un archivo (local o nube) sin crear el documento; el llamador arma el registro. */
+      async storeBytes(name: string, bytes: Uint8Array): Promise<{ key: string; size: number; mime: string }> {
+        const safe = safeFileName(name);
+        const chk = validateUpload(safe, bytes);
+        if (!chk.ok) throw new Error(`${safe}: ${chk.error}`);
+        const key = uid() + uid();
+        if (cloud) await putFileCloud(cloud, key, bytes, safe, chk.mime); else await local.writeBytes(key, bytes);
+        return { key, size: bytes.length, mime: chk.mime };
+      },
       async open(d: Doc) {
         if (cloud) return local.saveBytes(d.name, await getFileCloud(cloud, d.fileKey), d.mime);
         return local.openFile(d.fileKey, d.name, d.mime);

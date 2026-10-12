@@ -16,7 +16,7 @@ import { notify } from '../ui/kit.tsx';
 const ST: ObligationStatus[] = ['Pendiente', 'Presentada', 'Pagada'];
 const LINKS = [['Portal SAT', 'https://www.sat.gob.mx'], ['Declaraciones', 'https://www.sat.gob.mx/aplicacion/53175/presenta-tu-declaracion-de-impuestos'], ['Validar CFDI', 'https://verificacfdi.facturaelectronica.sat.gob.mx']] as const;
 
-export default function Fiscal() {
+export default function Fiscal({ role = 'propietario' }: { role?: 'propietario' | 'cliente' | 'lectura' }) {
   const { data, upsert, remove, session, mode } = useStore();
   const [xml, setXml] = useState('');
   const [rep, setRep] = useState<CfdiReport | null>(null);
@@ -49,7 +49,7 @@ export default function Fiscal() {
     exportText(`resumen-fiscal-${per}.csv`, toCSV(rows)).catch(e => notify(e.message));
   };
   return (
-    <Page title="Fiscal" actions={<><Btn small kind="ghost" label="Exportar resumen del mes" onPress={exportSummary} /><Btn label="+ Obligación" onPress={() => setEdit('new')} /></>}>
+    <Page title="Fiscal" actions={<><Btn small kind="ghost" label="Exportar resumen del mes" onPress={exportSummary} />{role === 'propietario' && <Btn label="+ Obligación" onPress={() => setEdit('new')} />}</>}>
       <Banner tone="warn">Sirve para organizar obligaciones, importes capturados, fechas y estados. Esta app NO presenta declaraciones: eso se hace en el portal del SAT con e.firma o contraseña, que la app nunca solicita ni guarda. Las reglas vigentes deben confirmarse con un contador.</Banner>
       <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>{LINKS.map(([l, u]) => <Btn key={l} small kind="ghost" label={l} onPress={() => Linking.openURL(u)} />)}</View>
       <Card>
@@ -72,10 +72,10 @@ export default function Fiscal() {
         <Card key={o.id}>
           <Row><T bold>{o.name}</T><Badge label={o.status} tone={o.status === 'Pendiente' ? (o.dueDate < today() ? 'bad' : 'warn') : 'ok'} /></Row>
           <Muted>{clientName(data, o.clientId)} · Vence {o.dueDate} · Importe capturado {formatMXN(o.amountCents)}</Muted>
-          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+          {role === 'propietario' && <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
             {ST.filter(s => s !== o.status).map(s => <Btn key={s} small kind="ghost" label={`→ ${s}`} onPress={() => upsert('obligations', { ...o, status: s }, x => x.id === o.id)} />)}
             <Btn small kind="ghost" label="Editar" onPress={() => setEdit(o)} /><Btn small kind="danger" label="Eliminar" onPress={() => remove('obligations', x => x.id === o.id)} />
-          </View>
+          </View>}
         </Card>
       ))}
       {edit && <FormModal title={edit === 'new' ? 'Nueva obligación' : 'Editar obligación'} onClose={() => setEdit(null)} onSubmit={save}
