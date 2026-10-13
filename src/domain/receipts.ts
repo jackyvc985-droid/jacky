@@ -6,10 +6,21 @@ import type { Data, Doc, Employee, Id, Payroll } from './types.ts';
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
 const baseName = (n: string) => n.replace(/\.[^.]+$/, '').toLowerCase();
 
-/** Empareja cada XML con su PDF: mismo nombre base, o el UUID del CFDI dentro del nombre del PDF. */
-export function pairPdf(xmlName: string, uuid: string, pdfNames: string[]): string | undefined {
+/**
+ * Empareja cada XML con su PDF: mismo nombre base; o el UUID completo dentro del nombre del PDF;
+ * o el patrón de CONTPAQi «…_<NumEmpleado>_<últimas 3 letras del UUID>» (p. ej. …_001_9F0).
+ */
+export function pairPdf(xmlName: string, uuid: string, pdfNames: string[], numEmpleado = ''): string | undefined {
   const b = baseName(xmlName);
-  return pdfNames.find(p => baseName(p) === b) ?? (uuid ? pdfNames.find(p => p.toLowerCase().includes(uuid.toLowerCase())) : undefined);
+  const byBase = pdfNames.find(p => baseName(p) === b);
+  if (byBase) return byBase;
+  if (uuid) { const byUuid = pdfNames.find(p => p.toLowerCase().includes(uuid.toLowerCase())); if (byUuid) return byUuid; }
+  if (uuid && numEmpleado) {
+    const tail = `_${numEmpleado}_${uuid.slice(-3)}`.toLowerCase();
+    const hits = pdfNames.filter(p => baseName(p).endsWith(tail));
+    if (hits.length === 1) return hits[0];
+  }
+  return undefined;
 }
 
 export type ReceiptStatus = 'nuevo' | 'actualiza' | 'duplicado' | 'revisar' | 'error';
@@ -26,7 +37,7 @@ export function planReceipts(items: { xmlName: string; xmlText: string; pdfName?
     const n = parsed.nomina;
     const base = { xmlName: it.xmlName, pdfName: it.pdfName, parsed, errors: [...parsed.errors], warnings: [...parsed.warnings], clientId: '' as Id | '', employeeId: '' as Id | '', createEmployee: false, payrollId: '' as Id | '', period: '' };
     if (!n || parsed.errors.length) return { ...base, status: 'error' as const };
-    base.period = (n.fechaFinal || n.fechaPago).slice(0, 7);
+    base.period = (n.fechaPago || n.fechaFinal).slice(0, 7); // el mes de pago
     if (n.uuid && seen.has(n.uuid)) return { ...base, status: 'duplicado' as const, warnings: [...base.warnings, 'Este recibo (UUID) ya está cargado.'] };
     if (n.uuid) seen.add(n.uuid); // también detecta repetidos dentro del mismo lote
 
@@ -40,7 +51,8 @@ export function planReceipts(items: { xmlName: string; xmlText: string; pdfName?
     if (!client) base.warnings.push(`Ningún cliente tiene el RFC del emisor (${n.emisorRfc}). Elige el cliente o captura ese RFC en su ficha.`);
     if (!emp) base.warnings.push(`No hay un trabajador con RFC ${r.rfc}: se creará su ficha con los datos del recibo.`);
 
-    const existing = emp ? data.payrolls.filter(p => !p.cfdi && p.period === base.period && (p.employeeId === emp.id || (!p.employeeId && norm(p.employee) === norm(emp.name)))) : [];
+    // Solo los recibos MENSUALES se asocian a una nómina calculada en la app (que es mensual); semanales/quincenales siempre son nóminas nuevas.
+    const existing = emp && n.receptor.periodicidad === '05' ? data.payrolls.filter(p => !p.cfdi && p.period === base.period && (p.employeeId === emp.id || (!p.employeeId && norm(p.employee) === norm(emp.name)))) : [];
     if (existing.length === 1) {
       base.payrollId = existing[0].id;
       base.warnings.push(...reconcile(existing[0], n.totalCents, parsed.nomina!.lines).map(d => `Difiere del cálculo de la app: ${d}`));
@@ -71,7 +83,7 @@ export function buildReceiptRecords(plan: ReceiptPlan, data: Data, newId: () => 
   let employeeId = plan.employeeId;
   if (!employeeId) {
     employeeId = newId();
-    employee = { ...blankEmployee(employeeId, plan.clientId), numEmpleado: r.numEmpleado, name: r.nombre, rfc: r.rfc, curp: r.curp, nss: r.nss, hireDate: r.fechaInicioRel, puesto: r.puesto, departamento: r.departamento, contractType: r.tipoContrato || '01', jornada: r.jornada || '01', periodicidad: r.periodicidad || '05', entidad: r.entidad, dailySalaryCents: r.sdiCents && r.sbcCents ? r.sbcCents : r.sbcCents || r.sdiCents, sbcDailyCents: r.sdiCents || r.sbcCents, bank: r.banco, clabe: /^\d{18}$/.test(r.cuenta) ? r.cuenta : '', notes: 'Ficha creada a partir de un recibo timbrado: complétala.' };
+    employee = { ...blankEmployee(employeeId, plan.clientId), numEmpleado: r.numEmpleado, name: r.nombre, rfc: r.rfc, curp: r.curp, nss: r.nss, hireDate: r.fechaInicioRel, puesto: r.puesto, departamento: r.departamento, contractType: r.tipoContrato || '01', jornada: r.jornada || '01', periodicidad: r.periodicidad || '05', entidad: r.entidad, cp: r.cp, dailySalaryCents: 0, sbcDailyCents: r.sbcCents || r.sdiCents, bank: r.banco, clabe: /^\d{18}$/.test(r.cuenta) ? r.cuenta : '', notes: 'Ficha creada a partir de un recibo timbrado: el recibo no trae el salario diario ni el domicilio; complétalos.' };
   }
   const existing = plan.payrollId ? data.payrolls.find(p => p.id === plan.payrollId) : undefined;
   const payrollId = existing?.id ?? newId();

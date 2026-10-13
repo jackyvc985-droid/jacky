@@ -10,7 +10,7 @@ import { toCSV } from '../domain/csv.ts';
 import { exportText } from '../files';
 import { api } from '../cloud';
 import { useDocFiles } from '../docs';
-import { payrollSummary } from '../domain/payrollSummary.ts';
+import { payRuns, payrollSummary } from '../domain/payrollSummary.ts';
 import RecibosImport from './RecibosImport';
 import { clientName, clientOptions, Role, thisPeriod } from './common.ts';
 
@@ -136,8 +136,11 @@ function ResumenTab() {
   const { view, data } = useStore();
   const [period, setPeriod] = useState(thisPeriod());
   const [clientId, setClientId] = useState('');
-  const sum = payrollSummary(view.payrolls, view.employees, { period, clientId });
-  const shift = (n: number) => { const [y, m] = period.split('-').map(Number); setPeriod(new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7)); };
+  const [run, setRun] = useState('');
+  const runs = payRuns(view.payrolls, { period, clientId });
+  const sum = payrollSummary(view.payrolls, view.employees, { period, clientId, run: runs.some(r => r.key === run) ? run : '' });
+  const fmtRun = (r: { from: string; to: string }) => `${r.from.slice(8)}/${r.from.slice(5, 7)} – ${r.to.slice(8)}/${r.to.slice(5, 7)}`;
+  const shift = (n: number) => { const [y, m] = period.split('-').map(Number); setPeriod(new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7)); setRun(''); };
   const t = sum.totals;
   const exportCsv = () => exportText(`desglose-nomina-${period}.csv`, toCSV([
     ['trabajador', 'cliente', 'periodo', 'percepciones', 'isr', 'imss', 'otras_deducciones', 'otros_pagos', 'neto', 'recibo_timbrado', 'uuid'],
@@ -151,6 +154,13 @@ function ResumenTab() {
         <Btn small kind={clientId ? 'ghost' : 'primary'} label="Todos los clientes" onPress={() => setClientId('')} />
         {view.clients.map(c => <Btn key={c.id} small kind={clientId === c.id ? 'primary' : 'ghost'} label={c.name} onPress={() => setClientId(c.id)} />)}
       </View>
+      {runs.length > 0 && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <Muted>Periodo de pago:</Muted>
+          <Btn small kind={run ? 'ghost' : 'primary'} label="Todo el mes" onPress={() => setRun('')} />
+          {runs.map(r => <Btn key={r.key} small kind={run === r.key ? 'primary' : 'ghost'} label={`${fmtRun(r)} · pago ${r.payDate.slice(8)}/${r.payDate.slice(5, 7)} (${r.count})`} onPress={() => setRun(r.key)} />)}
+        </View>
+      )}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
         {[['Percepciones', t.perceptions], ['Deducciones', t.deductions], ['Neto a pagar', t.net]].map(([l, v]) => (
           <Card key={l as string} style={{ flexGrow: 1, flexBasis: 170 }}><Muted>{l as string}</Muted><T bold style={{ fontSize: 20, color: theme.primary }}>{formatMXN(v as number)}</T></Card>

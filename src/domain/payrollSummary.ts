@@ -13,9 +13,22 @@ export type PayrollSummary = {
 };
 
 /** Desglose general de la nómina de un periodo (y opcionalmente de un cliente), para todos los trabajadores. */
-export function payrollSummary(payrolls: Payroll[], employees: Employee[], f: { period: string; clientId: string }): PayrollSummary {
+export type PayRun = { key: string; from: string; to: string; payDate: string; count: number };
+/** Corridas de pago del mes (una semana, una quincena…) tomadas de las fechas de los recibos timbrados. */
+export function payRuns(payrolls: Payroll[], f: { period: string; clientId: string }): PayRun[] {
+  const m = new Map<string, PayRun>();
+  for (const p of payrolls) {
+    if (p.period !== f.period || (f.clientId && p.clientId !== f.clientId) || !p.cfdi?.fechaInicial) continue;
+    const key = `${p.cfdi.fechaInicial}|${p.cfdi.fechaFinal}`;
+    const r = m.get(key) ?? { key, from: p.cfdi.fechaInicial, to: p.cfdi.fechaFinal, payDate: p.cfdi.fechaPago, count: 0 };
+    r.count++; m.set(key, r);
+  }
+  return [...m.values()].sort((a, b) => a.from.localeCompare(b.from));
+}
+
+export function payrollSummary(payrolls: Payroll[], employees: Employee[], f: { period: string; clientId: string; run?: string }): PayrollSummary {
   const rows = payrolls
-    .filter(p => p.period === f.period && (!f.clientId || p.clientId === f.clientId))
+    .filter(p => p.period === f.period && (!f.clientId || p.clientId === f.clientId) && (!f.run || `${p.cfdi?.fechaInicial}|${p.cfdi?.fechaFinal}` === f.run))
     .map<SummaryRow>(p => {
       const emp = p.employeeId ? employees.find(e => e.id === p.employeeId) : undefined;
       const detailed = !!p.calc;

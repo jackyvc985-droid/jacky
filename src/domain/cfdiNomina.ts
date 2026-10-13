@@ -11,7 +11,7 @@ export type NominaCfdi = {
   tipoNomina: string; fechaPago: string; fechaInicial: string; fechaFinal: string; diasPagados: number;
   totalPercepciones: number; totalDeducciones: number; totalOtrosPagos: number;
   emisorRfc: string; emisorNombre: string; registroPatronal: string;
-  receptor: { rfc: string; nombre: string; curp: string; nss: string; numEmpleado: string; fechaInicioRel: string; puesto: string; departamento: string; tipoContrato: string; jornada: string; periodicidad: string; sbcCents: number; sdiCents: number; entidad: string; banco: string; cuenta: string };
+  receptor: { rfc: string; nombre: string; curp: string; nss: string; numEmpleado: string; fechaInicioRel: string; puesto: string; departamento: string; tipoContrato: string; jornada: string; periodicidad: string; sbcCents: number; sdiCents: number; entidad: string; banco: string; cuenta: string; cp: string };
   lines: CfdiLine[];
   subsidioCausadoCents: number;
 };
@@ -54,7 +54,7 @@ export function parseNominaCfdi(xml: string): ParsedNomina {
     tipoNomina: str(n.TipoNomina), fechaPago: str(n.FechaPago), fechaInicial: str(n.FechaInicialPago), fechaFinal: str(n.FechaFinalPago), diasPagados: Math.round(Number(n.NumDiasPagados ?? 0)),
     totalPercepciones: totalP, totalDeducciones: totalD, totalOtrosPagos: totalO,
     emisorRfc: str(c.Emisor?.Rfc), emisorNombre: str(c.Emisor?.Nombre), registroPatronal: str(n.Emisor?.RegistroPatronal),
-    receptor: { rfc: str(c.Receptor?.Rfc), nombre: str(c.Receptor?.Nombre), curp: str(r.Curp), nss: str(r.NumSeguridadSocial), numEmpleado: str(r.NumEmpleado), fechaInicioRel: str(r.FechaInicioRelLaboral), puesto: str(r.Puesto), departamento: str(r.Departamento), tipoContrato: str(r.TipoContrato), jornada: str(r.TipoJornada), periodicidad: str(r.PeriodicidadPago), sbcCents: cents(r.SalarioBaseCotApor), sdiCents: cents(r.SalarioDiarioIntegrado), entidad: str(r.ClaveEntFed), banco: str(r.Banco), cuenta: str(r.CuentaBancaria) },
+    receptor: { rfc: str(c.Receptor?.Rfc), nombre: str(c.Receptor?.Nombre), curp: str(r.Curp), nss: str(r.NumSeguridadSocial), numEmpleado: str(r.NumEmpleado), fechaInicioRel: str(r.FechaInicioRelLaboral), puesto: str(r.Puesto), departamento: str(r.Departamento), tipoContrato: str(r.TipoContrato), jornada: str(r.TipoJornada), periodicidad: str(r.PeriodicidadPago), sbcCents: cents(r.SalarioBaseCotApor), sdiCents: cents(r.SalarioDiarioIntegrado), entidad: str(r.ClaveEntFed), banco: str(r.Banco), cuenta: str(r.CuentaBancaria), cp: str(c.Receptor?.DomicilioFiscalReceptor) },
     lines, subsidioCausadoCents: subsidioCausado,
   };
   return { report, nomina, errors, warnings };

@@ -30,10 +30,12 @@ export default function RecibosImport({ onClose }: { onClose: () => void }) {
   const plans = useMemo<ReceiptPlan[]>(() => {
     const items = xmls.map(x => {
       const uuid = /UUID="([0-9A-Fa-f-]{36})"/.exec(x.text)?.[1] ?? '';
-      return { xmlName: x.name, xmlText: x.text, pdfName: pairPdf(x.name, uuid, pdfs.map(p => p.name)) };
+      const emp = /NumEmpleado="([^"]*)"/.exec(x.text)?.[1] ?? '';
+      return { xmlName: x.name, xmlText: x.text, pdfName: pairPdf(x.name, uuid, pdfs.map(p => p.name), emp) };
     });
     return planReceipts(items, data, force);
   }, [xmls, pdfs, data, force]);
+  const orphanPdfs = pdfs.filter(p => !plans.some(pl => pl.pdfName === p.name));
   const selected = plans.filter(p => (p.status === 'nuevo' || p.status === 'actualiza') && !off[p.xmlName]);
 
   const pick = async () => {
@@ -132,6 +134,7 @@ export default function RecibosImport({ onClose }: { onClose: () => void }) {
                   </View>
                 );
               })}
+              {orphanPdfs.map(p => <Muted key={p.name} style={{ color: theme.warn }}>• {p.name}: este PDF no tiene su XML entre los archivos elegidos, así que no se carga. Súbelo junto con su XML.</Muted>)}
               <Muted>Se valida la coherencia interna del CFDI (totales, percepciones, deducciones, CURP). No se verifica el sello ni el estatus ante el SAT en esta carga.</Muted>
             </View>}
 

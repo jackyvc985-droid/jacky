@@ -17,7 +17,7 @@ function xml(o: Opts = {}) {
   const sumD = D;
   const comp = o.nomina === false ? '' : `<nomina12:Nomina Version="1.2" TipoNomina="O" FechaPago="2026-10-15" FechaInicialPago="2026-10-01" FechaFinalPago="${o.fechaFin ?? '2026-10-15'}" NumDiasPagados="15.000" TotalPercepciones="${m(P)}" TotalDeducciones="${m(o.breakTotals ? sumD + 100 : sumD)}"${O ? ` TotalOtrosPagos="${m(O)}"` : ''}>
    <nomina12:Emisor RegistroPatronal="A1234567890"/>
-   <nomina12:Receptor Curp="${o.curp ?? 'PEPL850101HDFRRS09'}" NumSeguridadSocial="12345678901" FechaInicioRelLaboral="2024-02-01" TipoContrato="01" TipoJornada="01" TipoRegimen="02" NumEmpleado="E-014" Departamento="Ventas" Puesto="Vendedor" PeriodicidadPago="04" SalarioBaseCotApor="524.65" SalarioDiarioIntegrado="524.65" ClaveEntFed="CMX"/>
+   <nomina12:Receptor Curp="${o.curp ?? 'PEPL850101HDFRRS09'}" NumSeguridadSocial="12345678901" FechaInicioRelLaboral="2024-02-01" TipoContrato="01" TipoJornada="01" TipoRegimen="02" NumEmpleado="E-014" Departamento="Ventas" Puesto="Vendedor" PeriodicidadPago="05" SalarioBaseCotApor="524.65" SalarioDiarioIntegrado="524.65" ClaveEntFed="CMX"/>
    <nomina12:Percepciones TotalSueldos="${m(P)}" TotalGravado="${m(sueldo)}" TotalExento="${m(vales)}">
     <nomina12:Percepcion TipoPercepcion="001" Clave="P001" Concepto="Sueldos, Salarios Rayas y Jornales" ImporteGravado="${m(sueldo)}" ImporteExento="0.00"/>
     ${vales ? `<nomina12:Percepcion TipoPercepcion="029" Clave="P029" Concepto="Vales de despensa" ImporteGravado="0.00" ImporteExento="${m(vales)}"/>` : ''}
@@ -105,7 +105,8 @@ test('registros: nómina nueva desde el recibo (neto = Total del CFDI), trabajad
   const rec = buildReceiptRecords(pl, d, id, { xmlKey: 'kx', xmlSize: 10, pdfKey: 'kp', pdfSize: 20 }, '2026-10-15T00:00:00Z');
   assert.equal(rec.employee!.rfc, 'PEPL850101AB1');
   assert.equal(rec.employee!.numEmpleado, 'E-014');
-  assert.equal(rec.employee!.dailySalaryCents, 52465);
+  assert.equal(rec.employee!.dailySalaryCents, 0);                         // el recibo no trae el salario diario: no se inventa
+  assert.equal(rec.employee!.sbcDailyCents, 52465);                        // sí trae el SBC
   assert.equal(rec.payroll.source, 'cfdi');
   assert.equal(payrollNet(rec.payroll), pl.parsed.nomina!.totalCents);   // el neto de la app = el Total timbrado
   assert.equal(rec.payroll.calc!.isrCents, 140282);
