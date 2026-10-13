@@ -11,6 +11,12 @@ La clave (`DATA_KEY`) cifra los datos y los archivos del servidor (nóminas, tra
 4. **Aparte de los respaldos.** Un respaldo de la base junto a la clave, en el mismo lugar, anula el cifrado. Un respaldo sin la clave no se puede restaurar.
 5. Se **prueba la recuperación** antes de confiar: restaurar un respaldo en un servidor de prueba usando solo la clave guardada.
 
+## Propuesta de asignación (NO confirmada)
+- Responsable principal propuesto: JACKY, como representante de Grupo Canville. Suplente: **sin designar**, lo nombra JACKY.
+- La clave que se custodia es la que cifra nóminas y documentos; no es el certificado de sello digital del SAT.
+- Cuenta del servidor y dominio: a nombre de Grupo Canville, con correo corporativo y doble factor; **sin fecha de apertura**. Dominio propuesto `grupocanville.com` (`app.` y `api.`), disponibilidad no verificada.
+- Nota técnica: hoy el servidor lee la clave de la variable `DATA_KEY`. Guardarla en un KMS de nube sería un cambio de despliegue (inyectar la variable desde el KMS); el código no llama a ningún KMS.
+
 ## Datos de custodia (llenar a mano; no escribir aquí la clave)
 | Dato | Valor |
 |---|---|
