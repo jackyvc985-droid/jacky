@@ -124,3 +124,12 @@ test('módulos del portal', () => {
   assert.deepEqual(parseModules('{roto'), ['documentos', 'proyectos', 'tareas']);
   assert.deepEqual(parseModules('["tareas"]'), ['tareas']);
 });
+
+import { isSafeApiUrl } from '../src/cloud.ts';
+test('dirección del servidor: solo HTTPS (HTTP solo local)', () => {
+  assert.equal(isSafeApiUrl('https://api.ejemplo.com/'), true);
+  assert.equal(isSafeApiUrl('http://localhost:8787'), true);
+  assert.equal(isSafeApiUrl('http://api.ejemplo.com'), false);
+  assert.equal(isSafeApiUrl('javascript:alert(1)'), false);
+  assert.equal(isSafeApiUrl('api.ejemplo.com'), false);
+});

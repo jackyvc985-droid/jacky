@@ -12,8 +12,17 @@ export class ApiError extends Error {
 export const DEFAULT_API = (process.env.EXPO_PUBLIC_API_URL as string | undefined) ?? '';
 export const normalizeUrl = (u: string) => u.trim().replace(/\/+$/, '');
 
+// Nunca se envían contraseñas ni tokens por HTTP: solo HTTPS (HTTP únicamente hacia la propia máquina, para desarrollo).
+export function isSafeApiUrl(u: string) {
+  try {
+    const x = new URL(normalizeUrl(u));
+    return x.protocol === 'https:' || (x.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(x.hostname));
+  } catch { return false; }
+}
+
 async function raw(apiUrl: string, token: string | undefined, method: string, path: string, body?: unknown, headers: Record<string, string> = {}) {
   const isBin = body instanceof Uint8Array;
+  if (!isSafeApiUrl(apiUrl)) throw new ApiError(0, 'La dirección del servidor debe empezar con https://', null);
   let res: Response;
   try {
     res = await fetch(normalizeUrl(apiUrl) + path, {
