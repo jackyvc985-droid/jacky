@@ -1,0 +1,39 @@
+# Servidor de Grupo Canville: API + HTTPS automático (Caddy). NO PROBADO en un servidor real (no hubo Docker disponible al prepararlo).
+# Uso (en el servidor): copia .env.example a .env, rellénalo y ejecuta:  docker compose up -d --build
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      PORT: "8787"
+    volumes:
+      - canville-data:/data        # base de datos y archivos (cifrados si hay DATA_KEY). Respáldalo.
+    expose:
+      - "8787"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      API_DOMAIN: ${API_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+volumes:
+  canville-data:
+  caddy-data:
+  caddy-config:

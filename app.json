@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "Grupo Canville",
+    "slug": "grupo-canville",
+    "version": "1.1.0",
+    "orientation": "default",
+    "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#002D54"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "mx.grupocanville.app",
+      "buildNumber": "2"
+    },
+    "android": {
+      "package": "mx.grupocanville.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png",
+        "backgroundColor": "#002D54"
+      },
+      "versionCode": 2,
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.VIBRATE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/favicon.png",
+      "name": "Grupo Canville",
+      "shortName": "GCV",
+      "themeColor": "#002D54",
+      "backgroundColor": "#F6F8FB"
+    },
+    "plugins": [
+      "expo-document-picker",
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "minSdkVersion": 24
+          }
+        }
+      ]
+    ]
+  }
+}

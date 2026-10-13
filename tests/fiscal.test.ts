@@ -1,0 +1,101 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { TABLES_2026, isrMonthly, calcPayroll } from '../src/domain/fiscal.ts';
+import { validateCfdi } from '../src/domain/cfdi.ts';
+
+test('tarifa ISR: cada cuota fija es consistente con el renglón anterior (±1 centavo)', () => {
+  const t = TABLES_2026.isrMonthly;
+  for (let i = 1; i < t.length; i++) {
+    const p = t[i - 1];
+    const expected = p.fixed + Math.round(((p.upper - p.lower) * p.rateBp) / 10000);
+    assert.ok(Math.abs(expected - t[i].fixed) <= 2, `renglón ${i + 1}: ${expected} vs ${t[i].fixed}`);
+  }
+});
+
+test('ISR mensual conocido', () => {
+  assert.equal(isrMonthly(1500000), 140282);      // $15,000.00 → $1,402.82
+  assert.equal(isrMonthly(0), 0);
+  assert.equal(isrMonthly(84459), Math.round(84458 * 192 / 10000));
+});
+
+test('subsidio: aplica bajo el límite y se entrega el excedente al trabajador', () => {
+  const low = calcPayroll({ salaryCents: 800000, dailySalaryCents: 26000, days: 30 });
+  assert.equal(low.subsidyApplied, 53565);
+  assert.equal(low.isrWithheld, Math.max(0, low.isrBeforeSubsidy - 53565));
+  const tiny = calcPayroll({ salaryCents: 50000, dailySalaryCents: 1700, days: 30 });
+  assert.equal(tiny.isrWithheld, 0);
+  assert.ok(tiny.subsidyPaid > 0);
+  const high = calcPayroll({ salaryCents: 1500000, dailySalaryCents: 50000, days: 30 });
+  assert.equal(high.subsidyApplied, 0);
+  assert.equal(high.isrWithheld, 140282);
+});
+
+test('IMSS obrero por concepto: 0.40 % del excedente de 3 UMA y 2.375 % del SBC', () => {
+  const r = calcPayroll({ salaryCents: 1500000, dailySalaryCents: 50000, days: 30, integrationFactor: 1 });
+  const sbc = 50000, exc = sbc - 3 * 11731;
+  const it = r.detail.imssItems;
+  assert.equal(it.length, 5);
+  assert.equal(it[0].cents, Math.round(exc * 30 * 40 / 10000));
+  assert.deepEqual(it.slice(1).map(x => x.rateBp), [25, 37.5, 62.5, 112.5]);
+  assert.equal(r.imss, it.reduce((a, x) => a + x.cents, 0));
+  assert.equal(r.net, 1500000 - r.deductionsTotal + r.subsidyPaid);
+});
+
+test('desglose de ISR: cuota fija + excedente × tasa = ISR causado', () => {
+  const r = calcPayroll({ salaryCents: 1500000, dailySalaryCents: 50000, days: 30 });
+  const d = r.detail.isr;
+  assert.equal(d.lowerCents, 1464465);
+  assert.equal(d.excessCents, 1500000 - 1464465);
+  assert.equal(d.rateBp, 1792);
+  assert.equal(d.fixedCents + d.marginalCents, d.causedCents);
+  assert.equal(d.causedCents, 140282);
+});
+
+test('percepciones: exentas no entran a la base; otras gravadas sí; el neto suma todo', () => {
+  const base = calcPayroll({ salaryCents: 1000000, dailySalaryCents: 33000, days: 30 });
+  const ext = calcPayroll({ salaryCents: 1000000, exemptCents: 200000, dailySalaryCents: 33000, days: 30 });
+  assert.equal(ext.isrBeforeSubsidy, base.isrBeforeSubsidy);
+  assert.equal(ext.net, base.net + 200000);
+  assert.equal(ext.grossCents, 1200000);
+  const bono = calcPayroll({ salaryCents: 1000000, otherTaxableCents: 200000, dailySalaryCents: 33000, days: 30 });
+  assert.ok(bono.isrBeforeSubsidy > base.isrBeforeSubsidy);
+  assert.equal(bono.taxableCents, 1200000);
+});
+
+test('IMSS: tope de 25 UMA', () => {
+  const r = calcPayroll({ salaryCents: 9000000, dailySalaryCents: 1000000, days: 30 });
+  assert.equal(r.detail.sbcDailyCents, 25 * 11731);
+});
+
+const CFDI = (total = '116.00', extra = '') => `<?xml version="1.0"?>
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" xmlns:tfd="http://www.sat.gob.mx/TimbreFiscalDigital" Version="4.0" Fecha="2026-03-01T10:00:00" SubTotal="100.00" Total="${total}" Moneda="MXN" TipoDeComprobante="I" NoCertificado="123" Certificado="abc" Sello="xyz">
+ <cfdi:Emisor Rfc="AAA010101AAA" Nombre="X"/><cfdi:Receptor Rfc="XAXX010101000" Nombre="Y"/>
+ <cfdi:Conceptos><cfdi:Concepto Importe="100.00" Descripcion="s"/></cfdi:Conceptos>
+ <cfdi:Impuestos TotalImpuestosTrasladados="16.00"/>
+ <cfdi:Complemento>${extra || '<tfd:TimbreFiscalDigital UUID="6128396F-C09B-4EC6-8699-43C5F7E3B230"/>'}</cfdi:Complemento>
+</cfdi:Comprobante>`;
+
+test('CFDI válido', () => {
+  const r = validateCfdi(CFDI());
+  assert.deepEqual(r.errors, []);
+  assert.equal(r.uuid, '6128396F-C09B-4EC6-8699-43C5F7E3B230');
+  assert.equal(r.total, 11600);
+});
+test('CFDI con total incorrecto, sin timbre y XML roto', () => {
+  assert.ok(validateCfdi(CFDI('120.00')).errors.some(e => e.startsWith('Total')));
+  assert.ok(validateCfdi(CFDI('116.00', ' ')).errors.some(e => e.includes('timbrado')));
+  assert.equal(validateCfdi('<a><b></a>').ok, false);
+  assert.equal(validateCfdi('<x/>').ok, false);
+});
+
+import { buildEnvelope, parseResponse, formatTotal, validateQuery } from '../server/sat.ts';
+test('consulta SAT: solicitud y lectura de respuesta (sin red)', () => {
+  assert.equal(formatTotal('1160.5'), '0000001160.500000');
+  const q = { re: 'AAA010101AAA', rr: 'XAXX010101000', total: '1160.00', uuid: '6128396F-C09B-4EC6-8699-43C5F7E3B230' };
+  assert.equal(validateQuery(q), null);
+  assert.ok(validateQuery({ ...q, uuid: 'x' }));
+  assert.ok(buildEnvelope(q).includes('?re=AAA010101AAA&rr=XAXX010101000&tt=0000001160.000000&id=6128396F-C09B-4EC6-8699-43C5F7E3B230'));
+  const r = parseResponse('<s:Envelope><s:Body><ConsultaResponse><ConsultaResult><a:CodigoEstatus>S - Comprobante obtenido satisfactoriamente.</a:CodigoEstatus><a:EsCancelable>Cancelable sin aceptación</a:EsCancelable><a:Estado>Vigente</a:Estado><a:EstatusCancelacion/></ConsultaResult></ConsultaResponse></s:Body></s:Envelope>');
+  assert.equal(r.estado, 'Vigente');
+  assert.throws(() => parseResponse('<x/>'));
+});
